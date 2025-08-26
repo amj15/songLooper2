@@ -24,6 +24,7 @@ interface AudioControlsProps {
     audioRef: React.RefObject<HTMLAudioElement | null>;
     handlePlay: () => void;
     handleStop: () => void;
+    handleLoop?: () => void;
     isPlaying: boolean;
 }
 
@@ -32,6 +33,7 @@ const AudioControls: React.FC<AudioControlsProps & { click: boolean; setClick: R
     audioRef,
     handlePlay,
     handleStop,
+    handleLoop,
     isPlaying,
     click,
     setClick,
@@ -107,6 +109,7 @@ const AudioControls: React.FC<AudioControlsProps & { click: boolean; setClick: R
                                 <StopIcon />
                             </IconButton>
                             <IconButton
+                                onClick={handleLoop}
                                 sx={{
                                     backgroundColor: "warning.main",
                                 }}
