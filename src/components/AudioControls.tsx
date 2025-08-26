@@ -21,33 +21,30 @@ const StyledToolbar = styled(Toolbar)(({ theme }) => ({
 
 interface AudioControlsProps {
     project: any;
-    audioRef: React.RefObject<HTMLAudioElement | null>;
     handlePlay: () => void;
     handleStop: () => void;
     handleLoop?: () => void;
     isPlaying: boolean;
+    currentTime: number;
 }
 
 const AudioControls: React.FC<AudioControlsProps & { click: boolean; setClick: React.Dispatch<React.SetStateAction<boolean>> }> = ({ 
     project,
-    audioRef,
     handlePlay,
     handleStop,
     handleLoop,
     isPlaying,
+    currentTime,
     click,
     setClick,
 }) => {
-    const [currentTime, setCurrentTime] = React.useState(0);
-    React.useEffect(() => {
-        const interval = setInterval(() => {
-            if (audioRef.current) {
-                setCurrentTime(Math.floor(audioRef.current.currentTime * 10) / 10);
-            }
-        }, 100);
-
-        return () => clearInterval(interval);
-    }, [audioRef]);
+    // Memoizamos el formateo del tiempo para evitar cálculos innecesarios
+    const formattedTime = React.useMemo(() => {
+        const minutes = Math.floor(currentTime / 60);
+        const seconds = Math.floor(currentTime % 60);
+        const decimals = Math.floor((currentTime * 10) % 10);
+        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${decimals}`;
+    }, [currentTime]);
 
     return (
         <AppBar
@@ -143,7 +140,7 @@ const AudioControls: React.FC<AudioControlsProps & { click: boolean; setClick: R
                                 overflow: 'hidden', // Ensures content respects border radius
                             }}
                         >
-                            {`${String(Math.floor(currentTime / 60)).padStart(2, '0')}:${String(Math.floor(currentTime % 60)).padStart(2, '0')}.${Math.floor((currentTime * 10) % 10)}`}
+                            {formattedTime}
                         </Box>
                     </Box>
                 </StyledToolbar>

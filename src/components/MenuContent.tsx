@@ -1,3 +1,4 @@
+import { AddRounded } from '@mui/icons-material';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import List from '@mui/material/List';
@@ -10,6 +11,7 @@ import { Link } from 'react-router-dom';
 
 const mainListItems = [
   { text: 'Home', icon: <HomeRoundedIcon />, link: '/' },
+  { text: 'New project', icon: <AddRounded />, link: '/newWizard' },
 ];
 
 const secondaryListItems = [

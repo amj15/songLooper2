@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement>, currentTimeRef: React.MutableRefObject<number>) => {
     const [isPlaying, setIsPlaying] = useState(false);
-    const [, forceUpdate] = useState({});
+    const [currentTime, setCurrentTime] = useState(0);
     const rafRef = useRef<number | null>(null);
+    const lastUpdateTimeRef = useRef(0);
     const loopDataRef = useRef<{ isLoopActive: boolean; loopStart: number | null; loopEnd: number | null }>({
         isLoopActive: false,
         loopStart: null,
@@ -17,12 +18,22 @@ export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement>, cu
             
             // Si el loop está activo y llegamos al final, volver al inicio
             if (isLoopActive && loopEnd !== null && newTime >= loopEnd) {
-                audioRef.current.currentTime = loopStart || 0;
-                currentTimeRef.current = loopStart || 0;
+                const targetTime = loopStart || 0;
+                audioRef.current.currentTime = targetTime;
+                currentTimeRef.current = targetTime;
+                setCurrentTime(targetTime);
             } else {
-                if (Math.abs(newTime - currentTimeRef.current) > 0.01) {
+                // Optimización: actualizar solo si hay cambio significativo o cambio de subdivisión
+                const timeDiff = Math.abs(newTime - lastUpdateTimeRef.current);
+                const shouldUpdate = timeDiff > 0.001 && (
+                    timeDiff > 0.01 || // Cambio mayor a 10ms
+                    Math.floor(newTime * 4) !== Math.floor(lastUpdateTimeRef.current * 4) // Cambio de 16th note
+                );
+                
+                if (shouldUpdate) {
                     currentTimeRef.current = newTime;
-                    forceUpdate({}); // Esto mantiene las animaciones
+                    lastUpdateTimeRef.current = newTime;
+                    setCurrentTime(newTime);
                 }
             }
             
@@ -51,12 +62,21 @@ export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement>, cu
         }
         
         await audioRef.current.play();
+        
+        // Sincronizar inmediatamente currentTimeRef con el tiempo real del audio
+        currentTimeRef.current = audioRef.current.currentTime;
+        setCurrentTime(audioRef.current.currentTime);
+        lastUpdateTimeRef.current = audioRef.current.currentTime;
+        
         setIsPlaying(true);
     }, [audioRef, currentTimeRef, updateLoopData]);
 
     const pause = useCallback(() => {
         if (audioRef.current) {
             audioRef.current.pause();
+            // Mantener sincronización al pausar
+            currentTimeRef.current = audioRef.current.currentTime;
+            setCurrentTime(audioRef.current.currentTime);
             setIsPlaying(false);
         }
     }, [audioRef]);
@@ -72,6 +92,27 @@ export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement>, cu
             currentTimeRef.current = targetTime;
         }
     }, [audioRef, currentTimeRef]);
+
+    // Sincronización inicial cuando se carga el audio
+    useEffect(() => {
+        if (audioRef.current) {
+            const handleLoadedMetadata = () => {
+                if (audioRef.current) {
+                    currentTimeRef.current = audioRef.current.currentTime;
+                    setCurrentTime(audioRef.current.currentTime);
+                    lastUpdateTimeRef.current = audioRef.current.currentTime;
+                }
+            };
+            
+            audioRef.current.addEventListener('loadedmetadata', handleLoadedMetadata);
+            
+            return () => {
+                if (audioRef.current) {
+                    audioRef.current.removeEventListener('loadedmetadata', handleLoadedMetadata);
+                }
+            };
+        }
+    }, [audioRef]);
 
     // Iniciar/detener el requestAnimationFrame basado en isPlaying
     useEffect(() => {
@@ -89,6 +130,7 @@ export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement>, cu
 
     return {
         isPlaying,
+        currentTime, // Exponemos currentTime para que otros componentes no necesiten RAF
         play,
         pause,
         stop,

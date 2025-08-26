@@ -24,7 +24,7 @@ export default function Daw() {
     const barsData = useBarsData(project, audioRef);
     
     // Custom hooks para separar la lógica
-    const { isPlaying, play, stop, updateLoopData } = useAudioPlayback(audioRef, currentTimeRef);
+    const { isPlaying, currentTime, play, stop, updateLoopData } = useAudioPlayback(audioRef, currentTimeRef);
     const { 
         isLoopActive, 
         selectedBars, 
@@ -121,16 +121,13 @@ export default function Daw() {
                     {project && (
                         <AudioControls
                             project={project}
-                            audioRef={audioRef}
                             isPlaying={isPlaying}
+                            currentTime={currentTime}
                             handlePlay={() => play(isLoopActive, loopStart, loopEnd)}
                             handleStop={() => stop(isLoopActive, loopStart)}
                             handleLoop={handleLoop}
                             click={click}
                             setClick={setClick}
-                            isLoopActive={isLoopActive}
-                            selectedBarsCount={selectedBars.length}
-                            onClearLoop={clearLoop}
                         />
                     )}
                 </Box>
@@ -192,9 +189,8 @@ export default function Daw() {
                     {barsData.length > 0 && (
                         <BarsGrid
                             barsData={barsData}
-                            currentTimeRef={currentTimeRef}
+                            currentTime={currentTime}
                             displayBars={displayBars}
-                            isPlaying={isPlaying}
                             selectedBars={selectedBars}
                             onBarClick={handleBarClick}
                             onBarMouseDown={handleBarMouseDown}
@@ -203,7 +199,6 @@ export default function Daw() {
                             isLoopActive={isLoopActive}
                             sections={sections}
                             getSectionForBar={getSectionForBar}
-                            isCreatingSection={isCreatingSection}
                             isDragging={isDragging}
                             dragStart={dragStart}
                             dragEnd={dragEnd}

@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Settings from './pages/Settings';
 
+import ImportWizard from './pages/ImportWizard';
 import AppTheme from './theme/AppTheme';
 import {
   chartsCustomizations,
@@ -65,6 +66,16 @@ export default function App(props: { disableCustomTheme?: boolean }) {
             <ProtectedRoute>
               <DashboardLayout>
                 <Daw />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/newWizard"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <ImportWizard />
               </DashboardLayout>
             </ProtectedRoute>
           }

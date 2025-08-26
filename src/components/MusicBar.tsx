@@ -1,5 +1,5 @@
 import { Box, Typography } from "@mui/material";
-import React, { memo } from "react";
+import React, { memo, useMemo } from "react";
 
 interface Section {
     id: string;
@@ -48,26 +48,68 @@ const MusicBar = memo(({
     inNewSection
 }: MusicBarProps) => {
     
-    const formatTime = (timeInSeconds: number) => {
-        const minutes = Math.floor(timeInSeconds / 60);
-        const seconds = Math.floor(timeInSeconds % 60);
-        const milliseconds = Math.floor((timeInSeconds % 1) * 1000);
+    // Memoizar el formato de tiempo (no cambia durante la reproducción)
+    const formattedTime = useMemo(() => {
+        const minutes = Math.floor(startTime / 60);
+        const seconds = Math.floor(startTime % 60);
+        const milliseconds = Math.floor((startTime % 1) * 1000);
         return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
-    };
+    }, [startTime]);
 
-    const getBorderColor = () => {
-        if (inNewSection) return "#9c27b0"; // Morado cuando está creando sección
-        if (isSelected && isLoopActive) return "#4caf50"; // Verde cuando está en loop activo
-        if (isSelected) return "#ff9800"; // Naranja cuando está seleccionado
-        return "#ddd"; // Gris por defecto
-    };
+    // Memoizar colores para evitar cálculos en cada render
+    const { borderColor, backgroundColor } = useMemo(() => {
+        let borderColor, backgroundColor;
+        
+        if (inNewSection) {
+            borderColor = "#9c27b0";
+            backgroundColor = "#f3e5f5";
+        } else if (isSelected && isLoopActive) {
+            borderColor = "#4caf50";
+            backgroundColor = "#e8f5e8";
+        } else if (isSelected) {
+            borderColor = "#ff9800";
+            backgroundColor = "#fff3e0";
+        } else {
+            borderColor = "#ddd";
+            backgroundColor = "white";
+        }
+        
+        return { borderColor, backgroundColor };
+    }, [inNewSection, isSelected, isLoopActive]);
 
-    const getBackgroundColor = () => {
-        if (inNewSection) return "#f3e5f5"; // Morado claro cuando está creando sección
-        if (isSelected && isLoopActive) return "#e8f5e8"; // Verde claro cuando está en loop activo
-        if (isSelected) return "#fff3e0"; // Naranja claro cuando está seleccionado
-        return "white"; // Blanco por defecto
-    };
+    // Memoizar el grid de subdivisiones (solo cambia cuando cambia activeSubdivision)
+    const subdivisionsGrid = useMemo(() => (
+        Array.from({ length: subdivisions }, (_, index) => (
+            <Box
+                key={index}
+                sx={{
+                    height: "32px",
+                    backgroundColor: "#f0f0f0",
+                    border: active && activeSubdivision === index 
+                        ? "2px solid #ff4444" 
+                        : "1px solid #ccc",
+                    borderRadius: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    // Optimización: usar transform para la animación en lugar de cambiar border
+                    transform: active && activeSubdivision === index ? "scale(1.05)" : "scale(1)",
+                    transition: "transform 0.05s ease-out" // Transición muy rápida
+                }}
+            >
+                <Typography
+                    variant="caption"
+                    sx={{
+                        color: active && activeSubdivision === index ? "#ff4444" : "#666",
+                        fontSize: "12px",
+                        fontWeight: active && activeSubdivision === index ? "bold" : "normal"
+                    }}
+                >
+                    {index + 1}
+                </Typography>
+            </Box>
+        ))
+    ), [subdivisions, active, activeSubdivision]);
 
     return (
         <Box
@@ -76,10 +118,10 @@ const MusicBar = memo(({
             onMouseEnter={onMouseEnter}
             onMouseUp={onMouseUp}
             sx={{
-                border: `3px solid ${getBorderColor()}`,
+                border: `3px solid ${borderColor}`,
                 borderRadius: "8px",
                 padding: "12px",
-                backgroundColor: getBackgroundColor(),
+                backgroundColor: backgroundColor,
                 cursor: "pointer",
                 userSelect: "none"
             }}
@@ -110,7 +152,7 @@ const MusicBar = memo(({
                         fontFamily: "monospace"
                     }}
                 >
-                    {formatTime(startTime)}
+                    {formattedTime}
                 </Typography>
             </Box>
 
@@ -123,32 +165,7 @@ const MusicBar = memo(({
                     marginBottom: "8px"
                 }}
             >
-                {Array.from({ length: subdivisions }, (_, index) => (
-                    <Box
-                        key={index}
-                        sx={{
-                            height: "32px",
-                            backgroundColor: "#f0f0f0",
-                            border: active && activeSubdivision === index 
-                                ? "2px solid #ff4444" 
-                                : "1px solid #ccc",
-                            borderRadius: "4px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center"
-                        }}
-                    >
-                        <Typography
-                            variant="caption"
-                            sx={{
-                                color: "#666",
-                                fontSize: "12px"
-                            }}
-                        >
-                            {index + 1}
-                        </Typography>
-                    </Box>
-                ))}
+                {subdivisionsGrid}
             </Box>
 
             {/* Footer con información adicional */}

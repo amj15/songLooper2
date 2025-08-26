@@ -1,5 +1,5 @@
 import { Box, Typography } from "@mui/material";
-import React, { memo, useCallback, useEffect, useState } from "react";
+import React, { memo, useCallback, useMemo } from "react";
 import MusicBar from "./MusicBar";
 
 interface BarData {
@@ -12,9 +12,8 @@ interface BarData {
 
 interface BarsGridProps {
     barsData: BarData[];
-    currentTimeRef: React.MutableRefObject<number>;
+    currentTime: number;
     displayBars: number;
-    isPlaying: boolean;
     selectedBars: number[];
     onBarClick: (barIndex: number) => void;
     onBarMouseDown: (barIndex: number, event: React.MouseEvent) => void;
@@ -23,7 +22,6 @@ interface BarsGridProps {
     isLoopActive: boolean;
     sections: Section[];
     getSectionForBar: (barIndex: number) => Section | undefined;
-    isCreatingSection: boolean;
     isDragging: boolean;
     dragStart: number | null;
     dragEnd: number | null;
@@ -42,9 +40,8 @@ interface Section {
 
 const BarsGrid = memo(({ 
     barsData, 
-    currentTimeRef, 
+    currentTime,
     displayBars, 
-    isPlaying, 
     selectedBars, 
     onBarClick, 
     onBarMouseDown,
@@ -53,22 +50,24 @@ const BarsGrid = memo(({
     isLoopActive, 
     sections, 
     getSectionForBar, 
-    isCreatingSection, 
     isDragging,
     dragStart,
     dragEnd 
 }: BarsGridProps) => {
-    const [, forceUpdate] = useState({});
     
-    // Función para encontrar el compás activo y subdivisión
-    const getActiveBarAndBeat = useCallback(() => {
-        const currentTime = currentTimeRef.current;
-        
+    // Función para encontrar el compás activo y subdivisión - ahora memoizada
+    const getActiveBarAndBeat = useMemo(() => {
         for (let i = 0; i < barsData.length; i++) {
             const bar = barsData[i];
             if (currentTime >= bar.start && currentTime < bar.end) {
                 const elapsedInBar = currentTime - bar.start;
-                const activeSubdivision = Math.floor(elapsedInBar / bar.beatDuration) % bar.totalBeats;
+                const activeSubdivision = Math.floor(elapsedInBar / bar.beatDuration);
+                
+                // Debug: Log reducido para evitar spam en console
+                if (i < 2 && activeSubdivision === 0) { // Solo bar 0 y 1, solo en subdivision 0
+                    console.log(`Bar ${i}: time=${currentTime.toFixed(3)}s, subdivision=${activeSubdivision}`);
+                }
+                
                 return {
                     activeBarIndex: i,
                     activeSubdivision: activeSubdivision >= 0 ? activeSubdivision : null
@@ -77,31 +76,9 @@ const BarsGrid = memo(({
         }
         
         return { activeBarIndex: null, activeSubdivision: null };
-    }, [barsData, currentTimeRef]);
+    }, [barsData, currentTime]);
 
-    // Solo actualizar cuando sea necesario para la animación
-    useEffect(() => {
-        let animationId: number;
-        
-        const updateAnimation = () => {
-            if (isPlaying) {
-                forceUpdate({});
-                animationId = requestAnimationFrame(updateAnimation);
-            }
-        };
-        
-        if (isPlaying) {
-            animationId = requestAnimationFrame(updateAnimation);
-        }
-        
-        return () => {
-            if (animationId) {
-                cancelAnimationFrame(animationId);
-            }
-        };
-    }, [isPlaying]);
-
-    const { activeBarIndex, activeSubdivision } = getActiveBarAndBeat();
+    const { activeBarIndex, activeSubdivision } = getActiveBarAndBeat;
 
     // Determinar si un compás está en proceso de selección para sección
     const isInNewSection = useCallback((barIndex: number) => {
