@@ -10,7 +10,7 @@ interface UseBarNotationEditorProps {
         totalBeats: number;
     }>;
     onClose: () => void;
-    audioRef?: React.RefObject<HTMLAudioElement>; // Referencia al audio original
+    audioRef?: React.RefObject<HTMLAudioElement | null>; // Referencia al audio original
 }
 
 export const useBarNotationEditor = ({ 

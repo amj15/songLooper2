@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-export const useBarsData = (project: any, audioRef: React.RefObject<HTMLAudioElement>) => {
+export const useBarsData = (project: any, audioRef: React.RefObject<HTMLAudioElement | null>) => {
     return useMemo(() => {
         if (!project?.bars || !project.tempo || !project.time_signature) return [];
         

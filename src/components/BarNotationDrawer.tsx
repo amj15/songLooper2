@@ -56,18 +56,6 @@ const BarNotationDrawer: React.FC<BarNotationDrawerProps> = ({
         clearNotes
     } = useMusicalNotation({ projectId, barIndex });
 
-    // Calcular la posición de la barra roja
-    const calculateProgressPosition = () => {
-        if (!isPlaying || !barsData || barIndex === null || !barsData[barIndex]) return 0;
-        
-        const bar = barsData[barIndex];
-        const relativeTime = currentTime - bar.start;
-        const barDuration = bar.end - bar.start;
-        const progressPercentage = Math.max(0, Math.min(100, (relativeTime / barDuration) * 100));
-        
-        
-        return progressPercentage;
-    };
 
     // Inicializar VexFlow cuando se abra el drawer
     useEffect(() => {

@@ -1,7 +1,6 @@
 import { Box } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import * as Tone from "tone";
 import AudioControls from "../components/AudioControls";
 import BarsGrid from "../components/BarsGrid";
 import SectionEditorDrawer from "../components/SectionEditorDrawer";
@@ -18,7 +17,7 @@ export default function Daw() {
     const [project, setProject] = useState(null);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
     const [click, setClick] = useState(false);
-    const [displayBars, setDisplayBars] = useState(4);
+    const [displayBars] = useState(4);
     const [playbackRate, setPlaybackRate] = useState(1.0);
     
     // Estado para el editor de notación de compases
@@ -38,8 +37,7 @@ export default function Daw() {
         loopEnd,
         rangeStart,
         handleBarClick, 
-        toggleLoop, 
-        clearLoop 
+        toggleLoop
     } = useLoopControl(barsData);
     
     // Nuevo hook para manejo de secciones
@@ -49,9 +47,7 @@ export default function Daw() {
         toggleEditMode,
         handleBarSelection,
         updateFormData,
-        editExistingSection,
         saveSection,
-        deleteSection,
         getSectionForBar,
         loadSections
     } = useSectionEditor(id);

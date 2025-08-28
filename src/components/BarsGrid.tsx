@@ -86,14 +86,6 @@ const BarsGrid = memo(({
 
     const { activeBarIndex, activeSubdivision } = getActiveBarAndBeat;
 
-    // Determinar si un compás está en proceso de selección para sección
-    const isInNewSection = useCallback((barIndex: number) => {
-        if (!isDragging || dragStart === null || dragEnd === null) return false;
-        
-        const start = Math.min(dragStart, dragEnd);
-        const end = Math.max(dragStart, dragEnd);
-        return barIndex >= start && barIndex <= end;
-    }, [isDragging, dragStart, dragEnd]);
 
     // Función para determinar si un color es claro y necesita texto oscuro
     const isLightColor = useCallback((color: string) => {

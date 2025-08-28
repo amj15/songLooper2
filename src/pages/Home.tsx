@@ -2,8 +2,15 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../services/supabase";
 
+interface Project {
+    id: string;
+    name: string;
+    time_signature: string;
+    tempo: number;
+}
+
 export default function Home() {
-    const [projects, setProjects] = useState([]);
+    const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
   
     useEffect(() => {

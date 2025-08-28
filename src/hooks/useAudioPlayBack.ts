@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement>, currentTimeRef: React.MutableRefObject<number>) => {
+export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement | null>, currentTimeRef: React.MutableRefObject<number>) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const rafRef = useRef<number | null>(null);
