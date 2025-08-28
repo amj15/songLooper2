@@ -4,19 +4,25 @@ import { useParams } from "react-router-dom";
 import * as Tone from "tone";
 import AudioControls from "../components/AudioControls";
 import BarsGrid from "../components/BarsGrid";
-import SectionDialog from "../components/SectionDialog";
+import SectionEditorDrawer from "../components/SectionEditorDrawer";
+import BarNotationDrawer from "../components/BarNotationDrawer";
 import { useAudioPlayback } from "../hooks/useAudioPlayBack";
 import { useBarsData } from "../hooks/useBarsData";
 import { useLoopControl } from "../hooks/useLoopControls";
-import { useSectionManager } from "../hooks/useSectionManager";
+import { useSectionEditor } from "../hooks/useSectionEditor";
+import { useBarNotationEditor } from "../hooks/useBarNotationEditor";
 import { supabase } from "../services/supabase";
 
 export default function Daw() {
     const { id } = useParams();
     const [project, setProject] = useState(null);
-    const [audioUrl, setAudioUrl] = useState(null);
+    const [audioUrl, setAudioUrl] = useState<string | null>(null);
     const [click, setClick] = useState(false);
     const [displayBars, setDisplayBars] = useState(4);
+    const [playbackRate, setPlaybackRate] = useState(1.0);
+    
+    // Estado para el editor de notación de compases
+    const [selectedBarForEditing, setSelectedBarForEditing] = useState<number | null>(null);
     
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const currentTimeRef = useRef(0);
@@ -30,26 +36,41 @@ export default function Daw() {
         selectedBars, 
         loopStart, 
         loopEnd,
+        rangeStart,
         handleBarClick, 
-        handleLoop, 
+        toggleLoop, 
         clearLoop 
     } = useLoopControl(barsData);
     
+    // Nuevo hook para manejo de secciones
     const {
         sections,
-        showSectionDialog,
-        isCreatingSection,
-        isDragging,
-        dragStart,
-        dragEnd,
-        handleBarMouseDown,
-        handleBarMouseEnter,
-        handleBarMouseUp,
-        createSection,
-        cancelSectionCreation,
+        editorState,
+        toggleEditMode,
+        handleBarSelection,
+        updateFormData,
+        editExistingSection,
+        saveSection,
+        deleteSection,
         getSectionForBar,
-        sectionFormData
-    } = useSectionManager();
+        loadSections
+    } = useSectionEditor(id);
+
+    // Hook para el editor de notación de compases
+    const {
+        isPlaying: isBarPlaying,
+        currentTime: barCurrentTime,
+        playBar,
+        stopBar,
+        closeEditor: closeBarEditor,
+        cloneBar,
+        deleteBar
+    } = useBarNotationEditor({
+        barIndex: selectedBarForEditing,
+        barsData,
+        onClose: () => setSelectedBarForEditing(null),
+        audioRef
+    });
 
     // Actualizar los datos del loop cuando cambien
     useEffect(() => {
@@ -57,18 +78,55 @@ export default function Daw() {
             updateLoopData(isLoopActive, loopStart, loopEnd);
         }
     }, [isLoopActive, loopStart, loopEnd, updateLoopData]);
-    
-    // Grid para el step sequencer
-    const [grid, setGrid] = useState(
-        Array(4).fill(null).map(() => Array(16).fill(false))
-    );
 
-    const metronomeSynth = useRef(
-        new Tone.NoiseSynth({
-            noise: { type: "white" },
-            envelope: { attack: 0.001, decay: 0.05, sustain: 0 },
-        }).toDestination()
-    );
+    // Manejar clicks en compases dependiendo del modo
+    const handleBarClickUnified = (barIndex: number) => {
+        if (editorState.isEditing) {
+            // Modo edición: seleccionar para secciones
+            handleBarSelection(barIndex);
+        } else {
+            // Modo normal: seleccionar para loops
+            handleBarClick(barIndex);
+        }
+    };
+
+    // Función para saltar la reproducción a un compás específico
+    const handleSeekToBar = (barIndex: number) => {
+        if (audioRef.current && barsData[barIndex]) {
+            const targetTime = barsData[barIndex].start;
+            audioRef.current.currentTime = targetTime;
+            console.log(`Saltando al compás ${barIndex + 1} en tiempo ${targetTime.toFixed(3)}s`);
+        }
+    };
+
+    // Función para cambiar la velocidad de reproducción
+    const handlePlaybackRateChange = (rate: number) => {
+        setPlaybackRate(rate);
+        if (audioRef.current) {
+            audioRef.current.playbackRate = rate;
+        }
+    };
+
+    // Funciones para las acciones del SpeedDial
+    const handleEditBar = (barIndex: number) => {
+        setSelectedBarForEditing(barIndex);
+    };
+
+    const handleCloneBar = (barIndex: number) => {
+        cloneBar(barIndex);
+    };
+
+    const handleDeleteBar = (barIndex: number) => {
+        deleteBar(barIndex);
+    };
+
+    // Aplicar playback rate cuando cambie el audio
+    useEffect(() => {
+        if (audioRef.current) {
+            audioRef.current.playbackRate = playbackRate;
+        }
+    }, [audioUrl, playbackRate]);
+
 
     useEffect(() => {
         async function fetchProject() {
@@ -103,10 +161,23 @@ export default function Daw() {
         }
     }, [id]);
 
+    // Cargar secciones cuando el proyecto esté disponible
+    useEffect(() => {
+        if (project && id) {
+            loadSections();
+        }
+    }, [project, id, loadSections]);
+
     return (
         <>
             <audio ref={audioRef} src={audioUrl ?? undefined} preload="auto" />
-            <Box sx={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+            <Box sx={{ 
+                display: "flex", 
+                flexDirection: "column", 
+                height: "100vh",
+                transition: "margin-right 0.3s ease",
+                marginRight: editorState.isEditing ? "350px" : "0px"
+            }}>
                 {/* Top Bar */}
                 <Box
                     sx={{
@@ -125,9 +196,13 @@ export default function Daw() {
                             currentTime={currentTime}
                             handlePlay={() => play(isLoopActive, loopStart, loopEnd)}
                             handleStop={() => stop(isLoopActive, loopStart)}
-                            handleLoop={handleLoop}
+                            handleLoop={toggleLoop}
+                            onToggleEditSections={toggleEditMode}
+                            isEditingSections={editorState.isEditing}
                             click={click}
                             setClick={setClick}
+                            playbackRate={playbackRate}
+                            onPlaybackRateChange={handlePlaybackRateChange}
                         />
                     )}
                 </Box>
@@ -149,7 +224,7 @@ export default function Daw() {
                                     Loop activo ({selectedBars.length} compases)
                                 </Box>
                             )}
-                            {isCreatingSection && (
+                            {editorState.isEditing && (
                                 <Box sx={{ 
                                     padding: "4px 12px", 
                                     backgroundColor: "#9c27b0", 
@@ -158,12 +233,17 @@ export default function Daw() {
                                     fontSize: "12px",
                                     fontWeight: "bold"
                                 }}>
-                                    Creando sección
+                                    Editando secciones
                                 </Box>
                             )}
-                            {selectedBars.length > 0 && (
+                            {!editorState.isEditing && selectedBars.length > 0 && (
                                 <Box sx={{ fontSize: "12px", color: "#666" }}>
-                                    Seleccionados: {selectedBars.length} compases
+                                    Loop: {selectedBars.length} compases
+                                </Box>
+                            )}
+                            {editorState.isEditing && editorState.selectedBars.length > 0 && (
+                                <Box sx={{ fontSize: "12px", color: "#9c27b0" }}>
+                                    Selección: {editorState.selectedBars.length} compases
                                 </Box>
                             )}
                             {sections.length > 0 && (
@@ -177,13 +257,24 @@ export default function Daw() {
                     <Box sx={{ 
                         marginBottom: "16px", 
                         padding: "8px 12px", 
-                        backgroundColor: "#e3f2fd", 
+                        backgroundColor: editorState.isEditing ? "#fff3e0" : "#e3f2fd", 
                         borderRadius: "8px",
                         fontSize: "12px",
-                        color: "#1565c0"
+                        color: editorState.isEditing ? "#ef6c00" : "#1565c0"
                     }}>
-                        <strong>Controles:</strong> Click izquierdo = Loop | Click derecho + arrastar = Crear sección | 
-                        {isCreatingSection ? " Suelta para finalizar la sección" : ""}
+                        {editorState.isEditing ? (
+                            <>
+                                <strong>Modo Edición de Secciones:</strong> Click en compases para seleccionar rango | 
+                                {editorState.selectedBars.length === 1 && " Selecciona segundo compás para completar rango |"}
+                                {editorState.selectedBars.length > 1 && ` Rango: ${editorState.selectedBars.length} compases |`}
+                                {" "}Se puede reproducir pero sin loops visuales
+                            </>
+                        ) : (
+                            <>
+                                <strong>Modo Normal:</strong> Click en barra LOOP = Seleccionar rango (2 clicks) | Botón Loop = Activar/Desactivar
+                                {rangeStart !== null && " | Selecciona el segundo compás para completar el rango"}
+                            </>
+                        )}
                     </Box>
                     
                     {barsData.length > 0 && (
@@ -191,26 +282,54 @@ export default function Daw() {
                             barsData={barsData}
                             currentTime={currentTime}
                             displayBars={displayBars}
-                            selectedBars={selectedBars}
-                            onBarClick={handleBarClick}
-                            onBarMouseDown={handleBarMouseDown}
-                            onBarMouseEnter={handleBarMouseEnter}
-                            onBarMouseUp={handleBarMouseUp}
-                            isLoopActive={isLoopActive}
+                            selectedBars={editorState.isEditing ? editorState.selectedBars : selectedBars}
+                            rangeStart={editorState.isEditing ? null : rangeStart}
+                            onBarClick={handleBarClickUnified}
+                            onBarMouseDown={() => {}} // Desactivar en modo edición
+                            onBarMouseEnter={() => {}} // Desactivar en modo edición
+                            onBarMouseUp={() => {}} // Desactivar en modo edición
+                            isLoopActive={editorState.isEditing ? false : isLoopActive}
                             sections={sections}
                             getSectionForBar={getSectionForBar}
-                            isDragging={isDragging}
-                            dragStart={dragStart}
-                            dragEnd={dragEnd}
+                            isDragging={false} // No dragging en modo edición
+                            dragStart={null}
+                            dragEnd={null}
+                            isEditingMode={editorState.isEditing}
+                            onSeekToBar={handleSeekToBar}
+                            enableAutoScroll={true}
+                            onEditBar={handleEditBar}
+                            onCloneBar={handleCloneBar}
+                            onDeleteBar={handleDeleteBar}
                         />
                     )}
                 </Box>
 
-                <SectionDialog
-                    open={showSectionDialog}
-                    onClose={cancelSectionCreation}
-                    onCreate={createSection}
-                    formData={sectionFormData}
+                <SectionEditorDrawer
+                    open={editorState.isEditing}
+                    onClose={toggleEditMode}
+                    onSave={saveSection}
+                    formData={editorState.formData}
+                    onUpdateFormData={updateFormData}
+                    selectedBars={editorState.selectedBars}
+                    isEditingExisting={editorState.currentSection !== null}
+                />
+
+                <BarNotationDrawer
+                    open={selectedBarForEditing !== null}
+                    onClose={closeBarEditor}
+                    barIndex={selectedBarForEditing}
+                    section={selectedBarForEditing !== null ? getSectionForBar(selectedBarForEditing) : undefined}
+                    barNumber={selectedBarForEditing !== null && getSectionForBar(selectedBarForEditing) 
+                        ? selectedBarForEditing - getSectionForBar(selectedBarForEditing)!.startBar + 1 
+                        : selectedBarForEditing !== null ? selectedBarForEditing + 1 : 1
+                    }
+                    globalBarNumber={selectedBarForEditing !== null ? selectedBarForEditing + 1 : 1}
+                    isPlaying={isBarPlaying}
+                    onPlayBar={playBar}
+                    onStopBar={stopBar}
+                    currentTime={barCurrentTime}
+                    barsData={barsData}
+                    projectId={id}
                 />
             </Box>
         </>

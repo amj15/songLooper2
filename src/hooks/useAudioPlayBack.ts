@@ -16,25 +16,32 @@ export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement>, cu
             const newTime = audioRef.current.currentTime;
             const { isLoopActive, loopStart, loopEnd } = loopDataRef.current;
             
-            // Si el loop está activo y llegamos al final, volver al inicio
-            if (isLoopActive && loopEnd !== null && newTime >= loopEnd) {
-                const targetTime = loopStart || 0;
-                audioRef.current.currentTime = targetTime;
-                currentTimeRef.current = targetTime;
-                setCurrentTime(targetTime);
-            } else {
-                // Optimización: actualizar solo si hay cambio significativo o cambio de subdivisión
-                const timeDiff = Math.abs(newTime - lastUpdateTimeRef.current);
-                const shouldUpdate = timeDiff > 0.001 && (
-                    timeDiff > 0.01 || // Cambio mayor a 10ms
-                    Math.floor(newTime * 4) !== Math.floor(lastUpdateTimeRef.current * 4) // Cambio de 16th note
-                );
+            // Loop preciso sin solapamiento
+            if (isLoopActive && loopEnd !== null && loopStart !== null) {
+                // Usar umbral más pequeño para mayor precisión
+                const threshold = 0.010; // 10ms de umbral
                 
-                if (shouldUpdate) {
-                    currentTimeRef.current = newTime;
-                    lastUpdateTimeRef.current = newTime;
-                    setCurrentTime(newTime);
+                if (newTime >= (loopEnd - threshold)) {
+                    // Salto inmediato y preciso al inicio del loop
+                    audioRef.current.currentTime = loopStart;
+                    currentTimeRef.current = loopStart;
+                    setCurrentTime(loopStart);
+                    
+                    console.log(`Loop jump: ${newTime.toFixed(3)}s -> ${loopStart.toFixed(3)}s (end was ${loopEnd.toFixed(3)}s)`);
                 }
+            }
+            
+            // Optimización: actualizar solo si hay cambio significativo o cambio de subdivisión
+            const timeDiff = Math.abs(newTime - lastUpdateTimeRef.current);
+            const shouldUpdate = timeDiff > 0.001 && (
+                timeDiff > 0.01 || // Cambio mayor a 10ms
+                Math.floor(newTime * 4) !== Math.floor(lastUpdateTimeRef.current * 4) // Cambio de 16th note
+            );
+            
+            if (shouldUpdate) {
+                currentTimeRef.current = newTime;
+                lastUpdateTimeRef.current = newTime;
+                setCurrentTime(newTime);
             }
             
             rafRef.current = requestAnimationFrame(updateTime);
@@ -61,14 +68,39 @@ export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement>, cu
             }
         }
         
-        await audioRef.current.play();
+        // Buffer predictivo: pre-sincronizar antes del play
+        const prePlayTime = audioRef.current.currentTime;
         
-        // Sincronizar inmediatamente currentTimeRef con el tiempo real del audio
-        currentTimeRef.current = audioRef.current.currentTime;
-        setCurrentTime(audioRef.current.currentTime);
-        lastUpdateTimeRef.current = audioRef.current.currentTime;
-        
+        // Iniciar animación antes del play para mejor sincronización
         setIsPlaying(true);
+        
+        // Promise para esperar el evento 'playing' (audio realmente empezando)
+        const playingPromise = new Promise<void>((resolve) => {
+            const handlePlaying = () => {
+                audioRef.current?.removeEventListener('playing', handlePlaying);
+                resolve();
+            };
+            audioRef.current?.addEventListener('playing', handlePlaying);
+        });
+        
+        // Iniciar reproducción
+        const playPromise = audioRef.current.play();
+        
+        // Esperar ambos eventos
+        await Promise.all([playPromise, playingPromise]);
+        
+        // Sincronización post-play con compensación de latencia
+        requestAnimationFrame(() => {
+            if (audioRef.current) {
+                const actualTime = audioRef.current.currentTime;
+                currentTimeRef.current = actualTime;
+                setCurrentTime(actualTime);
+                lastUpdateTimeRef.current = actualTime;
+                
+                console.log(`Play sync: pre=${prePlayTime.toFixed(3)}s, actual=${actualTime.toFixed(3)}s, diff=${(actualTime - prePlayTime).toFixed(3)}s`);
+            }
+        });
+        
     }, [audioRef, currentTimeRef, updateLoopData]);
 
     const pause = useCallback(() => {
@@ -93,23 +125,41 @@ export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement>, cu
         }
     }, [audioRef, currentTimeRef]);
 
-    // Sincronización inicial cuando se carga el audio
+    // Sincronización inicial y optimizaciones de audio
     useEffect(() => {
         if (audioRef.current) {
+            const audio = audioRef.current;
+            
+            // Configurar audio para máxima precisión
+            audio.preload = 'auto';
+            
+            // Optimizaciones para reducir latencia
+            if ('preservesPitch' in audio) {
+                (audio as any).preservesPitch = false;
+            }
+            if ('mozPreservesPitch' in audio) {
+                (audio as any).mozPreservesPitch = false;
+            }
+            
             const handleLoadedMetadata = () => {
                 if (audioRef.current) {
                     currentTimeRef.current = audioRef.current.currentTime;
                     setCurrentTime(audioRef.current.currentTime);
                     lastUpdateTimeRef.current = audioRef.current.currentTime;
+                    console.log('Audio metadata loaded and synchronized');
                 }
             };
             
-            audioRef.current.addEventListener('loadedmetadata', handleLoadedMetadata);
+            const handleCanPlayThrough = () => {
+                console.log('Audio buffer ready for smooth playback');
+            };
+            
+            audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+            audio.addEventListener('canplaythrough', handleCanPlayThrough);
             
             return () => {
-                if (audioRef.current) {
-                    audioRef.current.removeEventListener('loadedmetadata', handleLoadedMetadata);
-                }
+                audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+                audio.removeEventListener('canplaythrough', handleCanPlayThrough);
             };
         }
     }, [audioRef]);

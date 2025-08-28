@@ -13,42 +13,44 @@ export const useLoopControl = (barsData: BarData[]) => {
     const [loopStart, setLoopStart] = useState<number | null>(null);
     const [loopEnd, setLoopEnd] = useState<number | null>(null);
     const [selectedBars, setSelectedBars] = useState<number[]>([]);
+    const [rangeStart, setRangeStart] = useState<number | null>(null); // Primer click del rango
 
     const handleBarClick = useCallback((barIndex: number) => {
         if (!barsData[barIndex]) return;
         
         setSelectedBars(prev => {
-            if (prev.length === 0) {
-                // Primer compás seleccionado
+            if (rangeStart === null) {
+                // Primer click: iniciar rango
+                setRangeStart(barIndex);
                 return [barIndex];
-            } else if (prev.length === 1) {
-                // Segundo compás - crear rango
-                const start = Math.min(prev[0], barIndex);
-                const end = Math.max(prev[0], barIndex);
+            } else {
+                // Segundo click: completar rango y activar loop automáticamente
+                const start = Math.min(rangeStart, barIndex);
+                const end = Math.max(rangeStart, barIndex);
                 const range = Array.from({ length: end - start + 1 }, (_, i) => start + i);
                 
-                // Configurar loop
-                setLoopStart(barsData[start].start);
-                setLoopEnd(barsData[end].end);
-                setIsLoopActive(true);
+                // Configurar datos del loop y activarlo automáticamente
+                const loopStartTime = barsData[start].start;
+                // Ajustar loopEnd para evitar solapamiento - restar un frame de audio (~1ms)
+                const adjustedLoopEnd = barsData[end].end - 0.001;
+                
+                console.log(`Creating loop: bars ${start}-${end}, start=${loopStartTime.toFixed(3)}s, end=${adjustedLoopEnd.toFixed(3)}s (original end=${barsData[end].end.toFixed(3)}s)`);
+                
+                setLoopStart(loopStartTime);
+                setLoopEnd(adjustedLoopEnd);
+                setIsLoopActive(true); // Auto-activar el loop
+                setRangeStart(null); // Reset para próxima selección
                 
                 return range;
-            } else {
-                // Ya hay selección - resetear
-                setSelectedBars([barIndex]);
-                setLoopStart(null);
-                setLoopEnd(null);
-                setIsLoopActive(false);
-                return [barIndex];
             }
         });
-    }, [barsData]);
+    }, [barsData, rangeStart]);
 
-    const handleLoop = useCallback(() => {
+    const toggleLoop = useCallback(() => {
         if (selectedBars.length >= 2) {
             setIsLoopActive(!isLoopActive);
         } else {
-            alert("Selecciona al menos 2 compases para crear un loop");
+            console.log("Selecciona al menos 2 compases para activar el loop");
         }
     }, [isLoopActive, selectedBars.length]);
 
@@ -57,6 +59,7 @@ export const useLoopControl = (barsData: BarData[]) => {
         setLoopStart(null);
         setLoopEnd(null);
         setIsLoopActive(false);
+        setRangeStart(null);
     }, []);
 
     return {
@@ -64,8 +67,9 @@ export const useLoopControl = (barsData: BarData[]) => {
         loopStart,
         loopEnd,
         selectedBars,
+        rangeStart, // Expo este estado para mostrar el primer click
         handleBarClick,
-        handleLoop,
+        toggleLoop, // Cambié el nombre de handleLoop a toggleLoop
         clearLoop
     };
 };

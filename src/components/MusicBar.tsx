@@ -1,25 +1,20 @@
-import { Box, Typography } from "@mui/material";
-import React, { memo, useMemo } from "react";
+import { Box, Typography, SpeedDial, SpeedDialAction } from "@mui/material";
+import { 
+    MusicNote as MusicNoteIcon, 
+    Edit as EditIcon,
+    ContentCopy as CopyIcon,
+    Delete as DeleteIcon
+} from "@mui/icons-material";
+import React, { memo, useMemo, useState } from "react";
+import type { Section } from "../types/sections";
 
-interface Section {
-    id: string;
-    startBar: number;
-    endBar: number;
-    type: string;
-    letter: string;
-    name: string;
-    displayName: string;
-    color: string;
-}
+// La interfaz Section ahora viene del import de types/sections
 
 interface MusicBarProps {
     barIndex: number;
-    barId: number;
     subdivisions: number;
     active: boolean;
     activeSubdivision: number | null;
-    startTime: number;
-    endTime: number;
     isSelected: boolean;
     isLoopActive: boolean;
     onClick: () => void;
@@ -27,17 +22,21 @@ interface MusicBarProps {
     onMouseEnter: () => void;
     onMouseUp: (event: React.MouseEvent) => void;
     section?: Section;
-    inNewSection: boolean;
+    isEditingMode?: boolean; // Modo edición de secciones
+    isLoopSelectionActive?: boolean; // Si hay una selección de loop en progreso
+    showLoopButton?: boolean; // Controlar si mostrar el botón de loop individual
+    isInActiveLoop?: boolean; // Si este compás está en un loop activo
+    barNumber?: number; // Número del compás (relativo a sección o absoluto)
+    onEditBar?: (barIndex: number) => void; // Función para editar notación del compás
+    onCloneBar?: (barIndex: number) => void; // Función para clonar compás
+    onDeleteBar?: (barIndex: number) => void; // Función para borrar compás
 }
 
 const MusicBar = memo(({ 
     barIndex, 
-    barId, 
     subdivisions, 
     active, 
     activeSubdivision,
-    startTime,
-    endTime,
     isSelected,
     isLoopActive,
     onClick,
@@ -45,37 +44,26 @@ const MusicBar = memo(({
     onMouseEnter,
     onMouseUp,
     section,
-    inNewSection
+    isEditingMode = false,
+    isLoopSelectionActive = false,
+    showLoopButton = true,
+    isInActiveLoop = false,
+    barNumber = 1,
+    onEditBar,
+    onCloneBar,
+    onDeleteBar
 }: MusicBarProps) => {
     
-    // Memoizar el formato de tiempo (no cambia durante la reproducción)
-    const formattedTime = useMemo(() => {
-        const minutes = Math.floor(startTime / 60);
-        const seconds = Math.floor(startTime % 60);
-        const milliseconds = Math.floor((startTime % 1) * 1000);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
-    }, [startTime]);
+    // Estado para controlar hover del botón loop
+    const [isLoopButtonHovered, setIsLoopButtonHovered] = useState(false);
+    
+    // Estado para controlar el SpeedDial
+    const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
+    
 
-    // Memoizar colores para evitar cálculos en cada render
-    const { borderColor, backgroundColor } = useMemo(() => {
-        let borderColor, backgroundColor;
-        
-        if (inNewSection) {
-            borderColor = "#9c27b0";
-            backgroundColor = "#f3e5f5";
-        } else if (isSelected && isLoopActive) {
-            borderColor = "#4caf50";
-            backgroundColor = "#e8f5e8";
-        } else if (isSelected) {
-            borderColor = "#ff9800";
-            backgroundColor = "#fff3e0";
-        } else {
-            borderColor = "#ddd";
-            backgroundColor = "white";
-        }
-        
-        return { borderColor, backgroundColor };
-    }, [inNewSection, isSelected, isLoopActive]);
+    // Colores estándar para todos los compases
+    const borderColor = "#ddd";
+    const backgroundColor = "white";
 
     // Memoizar el grid de subdivisiones (solo cambia cuando cambia activeSubdivision)
     const subdivisionsGrid = useMemo(() => (
@@ -111,6 +99,60 @@ const MusicBar = memo(({
         ))
     ), [subdivisions, active, activeSubdivision]);
 
+    if (isEditingMode) {
+        // Modo edición: solo mostrar número de compás
+        return (
+            <Box
+                onClick={onClick}
+                sx={{
+                    border: `3px solid ${borderColor}`,
+                    borderRadius: "8px",
+                    padding: "20px",
+                    backgroundColor: backgroundColor,
+                    cursor: "pointer",
+                    userSelect: "none",
+                    minHeight: "100px",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                        transform: "scale(1.02)",
+                        boxShadow: "0 4px 8px rgba(0,0,0,0.1)"
+                    }
+                }}
+            >
+                <Typography 
+                    variant="h4" 
+                    sx={{ 
+                        fontWeight: "bold",
+                        color: isSelected ? "white" : "#333",
+                        mb: 1
+                    }}
+                >
+                    {barIndex + 1}
+                </Typography>
+                
+                {/* Mostrar sección existente si la hay */}
+                {section && (
+                    <Typography 
+                        variant="caption" 
+                        sx={{ 
+                            color: isSelected ? "white" : section.color,
+                            fontWeight: "bold",
+                            fontSize: "10px",
+                            textAlign: "center"
+                        }}
+                    >
+                        {section.letter} - {section.label}
+                    </Typography>
+                )}
+            </Box>
+        );
+    }
+
+    // Modo normal: mostrar subdivisiones y controles de loop
     return (
         <Box
             onClick={onClick}
@@ -126,33 +168,23 @@ const MusicBar = memo(({
                 userSelect: "none"
             }}
         >
-            {/* Header del compás */}
-            <Box sx={{ 
-                display: "flex", 
-                justifyContent: "space-between", 
-                alignItems: "center", 
-                marginBottom: "8px" 
+            {/* Header con número de compás */}
+            <Box sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "8px",
+                paddingX: "4px"
             }}>
                 <Typography 
-                    variant="subtitle2" 
-                    sx={{ 
-                        fontWeight: "bold",
-                        color: inNewSection ? "#7b1fa2" :
-                               isSelected ? "#f57c00" : "#666"
-                    }}
-                >
-                    {inNewSection ? "🎵 " : ""}
-                    {isSelected && isLoopActive ? "🔁 " : ""}
-                    Compás {barIndex + 1}
-                </Typography>
-                <Typography 
                     variant="caption" 
-                    sx={{ 
-                        color: "#999",
-                        fontFamily: "monospace"
+                    sx={{
+                        fontSize: "10px",
+                        fontWeight: "bold",
+                        color: "#666"
                     }}
                 >
-                    {formattedTime}
+                    #{barNumber}
                 </Typography>
             </Box>
 
@@ -168,46 +200,137 @@ const MusicBar = memo(({
                 {subdivisionsGrid}
             </Box>
 
-            {/* Footer con información adicional */}
-            <Box sx={{ 
-                display: "flex", 
-                justifyContent: "space-between", 
-                alignItems: "center" 
-            }}>
-                <Typography 
-                    variant="caption" 
-                    sx={{ 
-                        color: "#999",
-                        fontSize: "10px"
-                    }}
-                >
-                    {subdivisions}/{subdivisions}
-                </Typography>
-                {inNewSection && (
-                    <Typography 
-                        variant="caption" 
-                        sx={{ 
-                            color: "#7b1fa2",
-                            fontWeight: "bold",
-                            fontSize: "10px"
+            {/* Footer con barra de loop y SpeedDial */}
+            {showLoopButton && (
+                <Box sx={{ 
+                    display: "flex", 
+                    alignItems: "center",
+                    gap: "4px",
+                    borderTop: "1px solid #eee",
+                    paddingTop: "8px",
+                    marginTop: "8px",
+                    minHeight: "28px" // Asegurar altura mínima
+                }}>
+                    {/* Barra de loop */}
+                    <Box 
+                        onMouseEnter={() => setIsLoopButtonHovered(true)}
+                        onMouseLeave={() => setIsLoopButtonHovered(false)}
+                        sx={{
+                            flexGrow: 1,
+                            minWidth: 0, // Permite que se encoja si es necesario
+                            height: "24px",
+                            backgroundColor: (() => {
+                                if (isInActiveLoop) return "#4caf50"; // Verde - compás en loop activo
+                                if (isLoopSelectionActive || isLoopButtonHovered) return "#e0e0e0"; // Visible cuando hay selección activa o hover
+                                return "transparent"; // Invisible por defecto
+                            })(),
+                            borderRadius: "12px", // Siempre redondeado individualmente
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            transition: "all 0.2s ease",
+                            opacity: (() => {
+                                if (isInActiveLoop) return 1; // Completamente visible si está en loop activo
+                                if (!isLoopActive && isLoopButtonHovered) return 1; // Visible con hover si no hay loop activo
+                                if (isLoopSelectionActive) return 1; // Visible durante selección
+                                return 0; // Invisible por defecto cuando hay loop pero este compás no está en él
+                            })(),
+                            "&:hover": {
+                                backgroundColor: (() => {
+                                    if (isInActiveLoop) return "#45a049"; // Verde más oscuro para loops activos
+                                    return "#bdbdbd"; // Gris más oscuro para hover
+                                })(),
+                                opacity: 1
+                            }
+                        }}
+                        onClick={(e) => {
+                            e.stopPropagation(); // Evitar trigger del onClick del compás
+                            onClick();
                         }}
                     >
-                        🎵 NUEVA SECCIÓN
-                    </Typography>
-                )}
-                {isSelected && !inNewSection && (
-                    <Typography 
-                        variant="caption" 
-                        sx={{ 
-                            color: isLoopActive ? "#4caf50" : "#f57c00",
-                            fontWeight: "bold",
-                            fontSize: "10px"
-                        }}
-                    >
-                        {isLoopActive ? "🔁 LOOP" : "📍 SELECCIONADO"}
-                    </Typography>
-                )}
-            </Box>
+                        <Typography 
+                            variant="caption" 
+                            sx={{ 
+                                color: (() => {
+                                    if (isInActiveLoop) return "white"; // Texto blanco en verde
+                                    return "#666"; // Texto gris en fondo gris
+                                })(),
+                                fontSize: "11px",
+                                fontWeight: "bold",
+                                letterSpacing: "0.5px"
+                            }}
+                        >
+                            {isInActiveLoop ? "LOOPED" : (isLoopSelectionActive ? "LOOP END" : "LOOP START")}
+                        </Typography>
+                    </Box>
+                    
+                    {/* SpeedDial fijo a la derecha */}
+                    {(onEditBar || onCloneBar || onDeleteBar) && (
+                        <Box sx={{ 
+                            flexShrink: 0, // No se encoge
+                            width: "28px",
+                            height: "28px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                        }}>
+                            <SpeedDial
+                                ariaLabel="Acciones del compás"
+                                icon={<MusicNoteIcon />}
+                                open={isSpeedDialOpen}
+                                onOpen={() => setIsSpeedDialOpen(true)}
+                                onClose={() => setIsSpeedDialOpen(false)}
+                                direction="up"
+                                sx={{
+                                    '& .MuiSpeedDial-fab': {
+                                        width: 28,
+                                        height: 28,
+                                        backgroundColor: '#1976d2',
+                                        '&:hover': {
+                                            backgroundColor: '#1565c0'
+                                        }
+                                    }
+                                }}
+                            >
+                                {onEditBar && (
+                                    <SpeedDialAction
+                                        icon={<EditIcon />}
+                                        title="Editar notación"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsSpeedDialOpen(false);
+                                            onEditBar(barIndex);
+                                        }}
+                                    />
+                                )}
+                                {onCloneBar && (
+                                    <SpeedDialAction
+                                        icon={<CopyIcon />}
+                                        title="Clonar compás"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsSpeedDialOpen(false);
+                                            onCloneBar(barIndex);
+                                        }}
+                                    />
+                                )}
+                                {onDeleteBar && (
+                                    <SpeedDialAction
+                                        icon={<DeleteIcon />}
+                                        title="Borrar compás"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsSpeedDialOpen(false);
+                                            onDeleteBar(barIndex);
+                                        }}
+                                    />
+                                )}
+                            </SpeedDial>
+                        </Box>
+                    )}
+                </Box>
+            )}
         </Box>
     );
 });
