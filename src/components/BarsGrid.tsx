@@ -226,7 +226,8 @@ const BarsGrid = memo(({
                 display: "flex", 
                 flexDirection: "column", 
                 gap: "32px",
-                overflowX: enableAutoScroll ? "auto" : "visible"
+                overflowX: enableAutoScroll ? "auto" : "visible",
+                paddingTop: "16px" // Espacio normal ya que AudioControls está en el layout
             }}
         >
             {rows.map((row, rowIndex) => (

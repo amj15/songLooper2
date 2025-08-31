@@ -65,39 +65,9 @@ const MusicBar = memo(({
     const borderColor = "#ddd";
     const backgroundColor = "white";
 
-    // Memoizar el grid de subdivisiones (solo cambia cuando cambia activeSubdivision)
-    const subdivisionsGrid = useMemo(() => (
-        Array.from({ length: subdivisions }, (_, index) => (
-            <Box
-                key={index}
-                sx={{
-                    height: "32px",
-                    backgroundColor: "#f0f0f0",
-                    border: active && activeSubdivision === index 
-                        ? "2px solid #ff4444" 
-                        : "1px solid #ccc",
-                    borderRadius: "4px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    // Optimización: usar transform para la animación en lugar de cambiar border
-                    transform: active && activeSubdivision === index ? "scale(1.05)" : "scale(1)",
-                    transition: "transform 0.05s ease-out" // Transición muy rápida
-                }}
-            >
-                <Typography
-                    variant="caption"
-                    sx={{
-                        color: active && activeSubdivision === index ? "#ff4444" : "#666",
-                        fontSize: "12px",
-                        fontWeight: active && activeSubdivision === index ? "bold" : "normal"
-                    }}
-                >
-                    {index + 1}
-                </Typography>
-            </Box>
-        ))
-    ), [subdivisions, active, activeSubdivision]);
+    // Colores para el compás activo
+    const activeBorderColor = active ? "#ff4444" : "#ddd";
+    const activeBoxShadow = active ? "0 0 16px rgba(255, 68, 68, 0.5)" : "none";
 
     if (isEditingMode) {
         // Modo edición: solo mostrar número de compás
@@ -152,53 +122,51 @@ const MusicBar = memo(({
         );
     }
 
-    // Modo normal: mostrar subdivisiones y controles de loop
+    // Modo normal: solo mostrar compás con borde activo
     return (
         <Box
-            onClick={onClick}
-            onMouseDown={onMouseDown}
-            onMouseEnter={onMouseEnter}
-            onMouseUp={onMouseUp}
             sx={{
-                border: `3px solid ${borderColor}`,
+                border: `3px solid ${activeBorderColor}`,
                 borderRadius: "8px",
-                padding: "12px",
+                padding: "20px",
                 backgroundColor: backgroundColor,
-                cursor: "pointer",
-                userSelect: "none"
+                userSelect: "none",
+                minHeight: "80px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                alignItems: "center",
+                boxShadow: activeBoxShadow,
+                transition: "all 0.2s ease"
             }}
         >
-            {/* Header con número de compás */}
-            <Box sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "8px",
-                paddingX: "4px"
-            }}>
-                <Typography 
-                    variant="caption" 
-                    sx={{
-                        fontSize: "10px",
-                        fontWeight: "bold",
-                        color: "#666"
-                    }}
-                >
-                    #{barNumber}
-                </Typography>
-            </Box>
-
-            {/* Grid de subdivisiones */}
-            <Box
+            {/* Número de compás */}
+            <Typography 
+                variant="h3" 
                 sx={{
-                    display: "grid",
-                    gridTemplateColumns: `repeat(${subdivisions}, 1fr)`,
-                    gap: "4px",
-                    marginBottom: "8px"
+                    fontSize: "28px",
+                    fontWeight: "bold",
+                    color: active ? "#ff4444" : "#666",
+                    mb: 1
                 }}
             >
-                {subdivisionsGrid}
-            </Box>
+                {barNumber}
+            </Typography>
+            
+            {/* Mostrar sección si existe */}
+            {section && (
+                <Typography 
+                    variant="caption" 
+                    sx={{ 
+                        color: section.color,
+                        fontWeight: "bold",
+                        fontSize: "10px",
+                        textAlign: "center"
+                    }}
+                >
+                    {section.letter} - {section.label}
+                </Typography>
+            )}
 
             {/* Footer con barra de loop y SpeedDial */}
             {showLoopButton && (
@@ -213,7 +181,10 @@ const MusicBar = memo(({
                 }}>
                     {/* Barra de loop */}
                     <Box 
-                        onMouseEnter={() => setIsLoopButtonHovered(true)}
+                        onMouseEnter={() => {
+                            setIsLoopButtonHovered(true);
+                            onMouseEnter();
+                        }}
                         onMouseLeave={() => setIsLoopButtonHovered(false)}
                         sx={{
                             flexGrow: 1,
@@ -245,8 +216,16 @@ const MusicBar = memo(({
                             }
                         }}
                         onClick={(e) => {
-                            e.stopPropagation(); // Evitar trigger del onClick del compás
+                            e.stopPropagation();
                             onClick();
+                        }}
+                        onMouseDown={(e) => {
+                            e.stopPropagation();
+                            onMouseDown(e);
+                        }}
+                        onMouseUp={(e) => {
+                            e.stopPropagation();
+                            onMouseUp(e);
                         }}
                     >
                         <Typography 

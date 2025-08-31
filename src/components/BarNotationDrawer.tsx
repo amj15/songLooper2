@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
     Drawer,
     Box,
@@ -14,6 +14,18 @@ import { Close as CloseIcon, PlayArrow as PlayIcon, Stop as StopIcon } from '@mu
 import { Renderer, Stave, StaveNote, Voice, Formatter } from 'vexflow';
 import type { Section } from '../types/sections';
 import { useMusicalNotation } from '../hooks/useMusicalNotation';
+import { DRUM_INSTRUMENTS } from '../types/drumNotation';
+import type { DrumInstrument } from '../types/drumNotation';
+
+// Fallback en caso de que la importación falle
+const FALLBACK_INSTRUMENTS = {
+    kick: { displayName: 'Kick', color: '#2E7D32' },
+    snare: { displayName: 'Snare', color: '#D32F2F' },
+    hihat: { displayName: 'Hi-Hat', color: '#F57C00' },
+    crash: { displayName: 'Crash', color: '#7B1FA2' },
+    ride: { displayName: 'Ride', color: '#303F9F' },
+    tom1: { displayName: 'Tom 1', color: '#689F38' },
+};
 
 interface BarNotationDrawerProps {
     open: boolean;
@@ -45,15 +57,24 @@ const BarNotationDrawer: React.FC<BarNotationDrawerProps> = ({
     projectId
 }) => {
     const svgRef = useRef<HTMLDivElement>(null);
+    const dropZonesRef = useRef<HTMLDivElement>(null);
+    
+    // Estado para drag & drop
+    const [draggedElement, setDraggedElement] = useState<DrumInstrument | null>(null);
+    const [draggedDuration, setDraggedDuration] = useState<number>(1);
+    const [hoveredPosition, setHoveredPosition] = useState<number | null>(null);
     
     // Usar el hook de notación musical
     const {
         notes,
         selectedNoteType,
         timeSignature,
+        totalSubdivisions,
         setSelectedNoteType,
         addNote,
-        clearNotes
+        clearNotes,
+        addDrumNote,
+        canPlaceNote
     } = useMusicalNotation({ projectId, barIndex });
 
 
@@ -70,34 +91,65 @@ const BarNotationDrawer: React.FC<BarNotationDrawerProps> = ({
         // Limpiar el contenido anterior
         svgRef.current.innerHTML = '';
         
-        // Crear el renderer SVG
+        // Crear el renderer SVG más amplio
         const renderer = new Renderer(svgRef.current, Renderer.Backends.SVG);
-        renderer.resize(500, 200);
+        renderer.resize(800, 250);
         const context = renderer.getContext();
         
-        // Crear el pentagrama
-        const stave = new Stave(10, 40, 400);
-        stave.addClef('treble').addTimeSignature(`${timeSignature.numerator}/${timeSignature.denominator}`);
+        // Crear el pentagrama más largo
+        const stave = new Stave(20, 50, 720);
+        stave.addClef('treble').addTimeSignature(`${timeSignature[0]}/${timeSignature[1]}`);
         stave.setContext(context).draw();
         
-        // Crear notas de ejemplo si no hay notas guardadas
+        // Usar las notas del hook o crear notas de ejemplo si está vacío
         const staveNotes = notes.length > 0 ? notes : [
-            new StaveNote({ keys: ['c/4'], duration: 'q' }),
-            new StaveNote({ keys: ['d/4'], duration: 'q' }),
-            new StaveNote({ keys: ['e/4'], duration: 'q' }),
-            new StaveNote({ keys: ['f/4'], duration: 'q' })
+            new StaveNote({ keys: ['c/4'], duration: 'qr' }),
+            new StaveNote({ keys: ['c/4'], duration: 'qr' }),
+            new StaveNote({ keys: ['c/4'], duration: 'qr' }),
+            new StaveNote({ keys: ['c/4'], duration: 'qr' })
         ];
         
+        // Verificar que tengamos notas válidas
+        if (staveNotes.length === 0) return;
+        
         // Crear la voz y añadir las notas
-        const voice = new Voice({ numBeats: timeSignature.numerator, beatValue: timeSignature.denominator });
+        const voice = new Voice({ numBeats: timeSignature[0], beatValue: timeSignature[1] });
         voice.addTickables(staveNotes);
         
-        // Formatear y renderizar
-        new Formatter().joinVoices([voice]).format([voice], 350);
+        // Formatear y renderizar con más espacio
+        new Formatter().joinVoices([voice]).format([voice], 650);
         voice.draw(context, stave);
     };
 
-    // Las funciones addNote y clearNotes ya están disponibles desde el hook
+    // Funciones para drag & drop
+    const handleDragStart = useCallback((drumElement: DrumInstrument, duration: number) => {
+        setDraggedElement(drumElement);
+        setDraggedDuration(duration);
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent, position: number) => {
+        e.preventDefault();
+        if (draggedElement && canPlaceNote(position, draggedDuration)) {
+            setHoveredPosition(position);
+        }
+    }, [draggedElement, draggedDuration, canPlaceNote]);
+
+    const handleDrop = useCallback((e: React.DragEvent, position: number) => {
+        e.preventDefault();
+        if (draggedElement && addDrumNote) {
+            const success = addDrumNote(draggedElement, position, draggedDuration);
+            if (success) {
+                console.log(`Añadida nota ${draggedElement} en posición ${position}`);
+            }
+        }
+        setDraggedElement(null);
+        setHoveredPosition(null);
+    }, [draggedElement, draggedDuration, addDrumNote]);
+
+    const handleDragEnd = useCallback(() => {
+        setDraggedElement(null);
+        setHoveredPosition(null);
+    }, []);
 
     // Verificar que barIndex no sea null antes de renderizar
     if (barIndex === null) return null;
@@ -229,43 +281,157 @@ const BarNotationDrawer: React.FC<BarNotationDrawerProps> = ({
                         </Box>
                     </Box>
                     
-                    {/* VexFlow Notation Area */}
-                    <Box
-                        ref={svgRef}
-                        sx={{
-                            border: '2px solid #ddd',
-                            borderRadius: 2,
-                            backgroundColor: '#ffffff',
-                            minHeight: 200,
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            mb: 2,
-                            position: 'relative',
-                            overflow: 'hidden'
-                        }}
-                    />
-                    
-                    {/* Piano-style note selector */}
-                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, flexWrap: 'wrap' }}>
-                        {['c/4', 'd/4', 'e/4', 'f/4', 'g/4', 'a/4', 'b/4', 'c/5'].map((note) => (
-                            <Button
-                                key={note}
-                                variant="outlined"
-                                size="small"
-                                onClick={() => addNote(note)}
-                                sx={{ 
-                                    minWidth: '60px',
-                                    backgroundColor: note.includes('#') ? '#333' : '#fff',
-                                    color: note.includes('#') ? '#fff' : '#000',
-                                    '&:hover': {
-                                        backgroundColor: note.includes('#') ? '#555' : '#f0f0f0'
-                                    }
+                    {/* VexFlow Notation Area with Drop Zones */}
+                    <Box sx={{ position: 'relative', mb: 2 }}>
+                        <Box
+                            ref={svgRef}
+                            sx={{
+                                border: '2px solid #ddd',
+                                borderRadius: 2,
+                                backgroundColor: '#ffffff',
+                                minHeight: 280,
+                                width: '100%',
+                                display: 'flex',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                position: 'relative',
+                                overflow: 'hidden'
+                            }}
+                        />
+                        
+                        {/* Drop Zones Overlay */}
+                        <Box
+                            ref={dropZonesRef}
+                            sx={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                pointerEvents: draggedElement ? 'auto' : 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                paddingX: '50px' // Alinear con el área del pentagrama
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    width: '720px', // Mismo ancho que el pentagrama
+                                    height: '100px',
+                                    position: 'relative'
                                 }}
                             >
-                                {note.replace('/', '').toUpperCase()}
-                            </Button>
-                        ))}
+                                {Array.from({ length: totalSubdivisions }, (_, index) => (
+                                    <Box
+                                        key={index}
+                                        onDragOver={(e) => handleDragOver(e, index)}
+                                        onDrop={(e) => handleDrop(e, index)}
+                                        sx={{
+                                            flex: 1,
+                                            height: '100%',
+                                            border: draggedElement ? '1px dashed #ccc' : 'none',
+                                            backgroundColor: 
+                                                hoveredPosition === index && canPlaceNote(index, draggedDuration) 
+                                                    ? 'rgba(76, 175, 80, 0.2)' 
+                                                    : hoveredPosition === index 
+                                                        ? 'rgba(244, 67, 54, 0.2)'
+                                                        : 'transparent',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                        onDragLeave={() => setHoveredPosition(null)}
+                                    >
+                                        {draggedElement && hoveredPosition === index && (
+                                            <Typography variant="caption" sx={{ color: 'rgba(0,0,0,0.5)' }}>
+                                                {canPlaceNote(index, draggedDuration) ? '✓' : '✗'}
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                ))}
+                            </Box>
+                        </Box>
+                    </Box>
+                    
+                    {/* Drum Elements Selector */}
+                    <Box>
+                        <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center' }}>
+                            Arrastra los elementos de batería al pentagrama:
+                        </Typography>
+                        
+                        {/* Duración selector */}
+                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 2 }}>
+                            <Typography variant="body2" sx={{ alignSelf: 'center', mr: 1 }}>
+                                Duración:
+                            </Typography>
+                            <ButtonGroup size="small" variant="outlined">
+                                <Button 
+                                    variant={draggedDuration === 4 ? 'contained' : 'outlined'}
+                                    onClick={() => setDraggedDuration(4)}
+                                >
+                                    Negra (4)
+                                </Button>
+                                <Button 
+                                    variant={draggedDuration === 2 ? 'contained' : 'outlined'}
+                                    onClick={() => setDraggedDuration(2)}
+                                >
+                                    Corchea (2)
+                                </Button>
+                                <Button 
+                                    variant={draggedDuration === 1 ? 'contained' : 'outlined'}
+                                    onClick={() => setDraggedDuration(1)}
+                                >
+                                    Semicorchea (1)
+                                </Button>
+                            </ButtonGroup>
+                        </Box>
+                        
+                        {/* Drum elements */}
+                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            {Object.entries(DRUM_INSTRUMENTS || FALLBACK_INSTRUMENTS).map(([key, config]) => (
+                                <Box
+                                    key={key}
+                                    draggable
+                                    onDragStart={() => handleDragStart(key as DrumInstrument, draggedDuration)}
+                                    onDragEnd={handleDragEnd}
+                                    sx={{
+                                        padding: '8px 16px',
+                                        border: '2px solid',
+                                        borderColor: config.color,
+                                        borderRadius: 2,
+                                        backgroundColor: config.color + '20',
+                                        cursor: 'grab',
+                                        userSelect: 'none',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 1,
+                                        '&:hover': {
+                                            backgroundColor: config.color + '40',
+                                            transform: 'scale(1.05)'
+                                        },
+                                        '&:active': {
+                                            cursor: 'grabbing'
+                                        },
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                >
+                                    <Box
+                                        sx={{
+                                            width: 12,
+                                            height: 12,
+                                            borderRadius: '50%',
+                                            backgroundColor: config.color
+                                        }}
+                                    />
+                                    <Typography variant="caption" sx={{ fontWeight: 'bold', color: config.color }}>
+                                        {config.displayName}
+                                    </Typography>
+                                </Box>
+                            ))}
+                        </Box>
                     </Box>
                 </CardContent>
             </Card>

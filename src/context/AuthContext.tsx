@@ -21,22 +21,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     // Obtener usuario al cargar
-    supabase.auth.getUser().then(({ data }) => {
-      console.log(data);
+    supabase.auth.getUser().then(({ data, error }) => {
+      console.log("AuthContext - getUser:", { data, error });
       if (data?.user) {
+        console.log("AuthContext - setting user:", data.user);
         setUser({ id: data.user.id, email: data.user.email ?? "" });
-        setLoading(false);
+      } else {
+        console.log("AuthContext - no user found");
+        setUser(null);
       }
+      setLoading(false);
     });
 
     // Suscribirnos a cambios de sesión
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("AuthContext - auth state change:", { event, session });
       if (session?.user) {
+        console.log("AuthContext - auth state change - setting user:", session.user);
         setUser({ id: session.user.id, email: session.user.email ?? "" });
-        setLoading(false);
       } else {
+        console.log("AuthContext - auth state change - clearing user");
         setUser(null);
       }
+      setLoading(false);
     });
 
     return () => {
@@ -45,9 +52,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    if (data.user) setUser({ id: data.user.id, email: data.user.email ?? "" });
+    try {
+      console.log("AuthContext - login attempt:", { email });
+      const { data, error } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password 
+      });
+      console.log("AuthContext - login response:", { data, error });
+      if (error) {
+        console.error("AuthContext - login error:", error);
+        throw error;
+      }
+      console.log("AuthContext - login successful");
+      // No seteamos el usuario aquí, el listener onAuthStateChange lo hará
+    } catch (error) {
+      console.error("AuthContext - login exception:", error);
+      throw error;
+    }
   };
 
   const logout = async () => {

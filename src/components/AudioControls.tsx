@@ -1,26 +1,16 @@
 import EditIcon from "@mui/icons-material/Edit";
+import SaveIcon from "@mui/icons-material/Save";
 import LoopIcon from "@mui/icons-material/Loop";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
-import { AppBar, Box, Button, ButtonGroup, Container, IconButton, styled, Toolbar, Typography, TextField } from "@mui/material";
+import { Box, Button, IconButton, Typography, TextField } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import * as React from 'react';
-
-const StyledToolbar = styled(Toolbar)(({ theme }) => ({
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexShrink: 0,
-    borderRadius: theme.shape.borderRadius,
-    backdropFilter: 'blur(24px)',
-    border: `1px solid ${theme.palette.divider}`,
-    backgroundColor: theme.palette.background.paper,
-    boxShadow: theme.shadows[1],
-    padding: theme.spacing(1, 1.5),
-}));
+import { supabase } from '../services/supabase';
+import BeatCounter from './BeatCounter';
 
 interface AudioControlsProps {
     project: any;
@@ -33,6 +23,14 @@ interface AudioControlsProps {
     isEditingSections?: boolean;
     playbackRate?: number;
     onPlaybackRateChange?: (rate: number) => void;
+    sections?: Array<{
+        id: string;
+        startBar: number;
+        endBar: number;
+        label: string;
+        letter: string;
+        color: string;
+    }>;
 }
 
 const AudioControls: React.FC<AudioControlsProps & { click: boolean; setClick: React.Dispatch<React.SetStateAction<boolean>> }> = ({ 
@@ -47,8 +45,57 @@ const AudioControls: React.FC<AudioControlsProps & { click: boolean; setClick: R
     click,
     setClick,
     playbackRate = 1.0,
-    onPlaybackRateChange
+    onPlaybackRateChange,
+    sections = []
 }) => {
+    // Estados para edición de nombre y categoría
+    const [isEditing, setIsEditing] = React.useState(false);
+    const [editName, setEditName] = React.useState(project?.name || '');
+    const [editCategory, setEditCategory] = React.useState(project?.category || 'General');
+    const [isSaving, setIsSaving] = React.useState(false);
+
+    // Actualizar estados cuando cambie el proyecto
+    React.useEffect(() => {
+        if (project) {
+            setEditName(project.name || '');
+            setEditCategory(project.category || 'General');
+        }
+    }, [project]);
+
+    // Función para guardar cambios
+    const handleSaveChanges = async () => {
+        if (!project?.id) return;
+        
+        setIsSaving(true);
+        try {
+            const { error } = await supabase
+                .from('projects')
+                .update({ 
+                    name: editName,
+                    category: editCategory
+                })
+                .eq('id', project.id);
+
+            if (error) throw error;
+            
+            setIsEditing(false);
+            // Recargar la página o actualizar el estado del proyecto padre
+            window.location.reload();
+        } catch (error) {
+            console.error('Error updating project:', error);
+            alert('Error al guardar los cambios');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Función para cancelar edición
+    const handleCancelEdit = () => {
+        setEditName(project?.name || '');
+        setEditCategory(project?.category || 'General');
+        setIsEditing(false);
+    };
+
     // Memoizamos el formateo del tiempo para evitar cálculos innecesarios
     const formattedTime = React.useMemo(() => {
         const minutes = Math.floor(currentTime / 60);
@@ -89,195 +136,125 @@ const AudioControls: React.FC<AudioControlsProps & { click: boolean; setClick: R
         handleBPMChange(currentBPM - 5);
     };
 
-    // Manejar input directo de BPM
-    const handleBPMInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const value = parseInt(event.target.value);
-        if (!isNaN(value) && value > 0) {
-            handleBPMChange(value);
-        }
-    };
-
     return (
-        <AppBar
-            position="fixed"
-            enableColorOnDark
-            sx={{
-                boxShadow: 0,
-                bgcolor: 'transparent',
-                backgroundImage: 'none',
-                mt: 'calc(var(--template-frame-height, 0px) + 28px)',
-            }}
-        >
-            <Container maxWidth="lg">
-                <StyledToolbar variant="dense" disableGutters>
-                    <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', px: 0 }}>
-                        <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
-                            <Button variant="text" color="info" size="small">
-                                {project?.name || 'Project Name'}
-                            </Button>
-                            <Button variant="text" color="info" size="small">
-                                Testimonials
-                            </Button>
-                            <Button variant="text" color="info" size="small">
-                                Highlights
-                            </Button>
-                            <Button variant="text" color="info" size="small">
-                                Pricing
-                            </Button>
-                            <Button variant="text" color="info" size="small" sx={{ minWidth: 0 }}>
-                                FAQ
-                            </Button>
-                            <Button variant="text" color="info" size="small" sx={{ minWidth: 0 }}>
-                                Bloggg
-                            </Button>
-                        </Box>
-                    </Box>
-                    <Box
-                        sx={{
-                            display: { xs: 'none', md: 'flex' },
-                            gap: 1,
-                            alignItems: 'center',
-                        }}
-                    >
-                        <ButtonGroup>
-                            <IconButton
-                                onClick={handlePlay}
-                                sx={{
-                                    backgroundColor: "default",
-                                }}
-                            >
-                                { isPlaying ? <PauseIcon /> : <PlayArrowIcon /> }
-                            </IconButton>
-                            <IconButton
-                                onClick={handleStop}
-                                sx={{
-                                    backgroundColor: "error.main",
-                                }}
-                            >
-                                <StopIcon />
-                            </IconButton>
-                            <IconButton
-                                onClick={handleLoop}
-                                sx={{
-                                    backgroundColor: "warning.main",
-                                }}
-                            >
-                                <LoopIcon />
-                            </IconButton>
-                            <IconButton
-                                onClick={onToggleEditSections}
-                                sx={{
-                                    backgroundColor: isEditingSections ? "secondary.main" : "default",
-                                }}
-                            >
-                                <EditIcon />
-                            </IconButton>
-                            <IconButton
-                                onClick={() => setClick(!click)}
-                                sx={{
-                                    backgroundColor: click ? "primary.main" : "default",
-                                }}
-                            >
-                                <MusicNoteIcon />
-                            </IconButton>
-                        </ButtonGroup>
+        <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2, 
+            padding: 1, 
+            width: '100%',
+            flexWrap: 'wrap'
+        }}>
+            {/* Project Name */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {isEditing ? (
+                    <>
+                        <TextField
+                            size="small"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Proyecto"
+                            sx={{ width: '120px' }}
+                        />
+                        <IconButton size="small" onClick={handleSaveChanges} disabled={isSaving}>
+                            <SaveIcon fontSize="small" />
+                        </IconButton>
+                        <Button size="small" onClick={handleCancelEdit} disabled={isSaving}>
+                            Cancelar
+                        </Button>
+                    </>
+                ) : (
+                    <>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            {editCategory} &gt; {editName}
+                        </Typography>
+                        <IconButton size="small" onClick={() => setIsEditing(true)}>
+                            <EditIcon fontSize="small" />
+                        </IconButton>
+                    </>
+                )}
+            </Box>
 
-                        {/* Control de BPM para bateristas */}
-                        <Box sx={{ 
-                            display: 'flex', 
-                            flexDirection: 'column', 
-                            alignItems: 'center', 
-                            minWidth: '180px',
-                            mx: 2 
-                        }}>
-                            <Typography variant="caption" sx={{ fontSize: '10px', mb: 0.5 }}>
-                                BPM (Original: {originalBPM})
-                            </Typography>
-                            <Box sx={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: 1 
-                            }}>
-                                <IconButton
-                                    onClick={handleBPMDecrement}
-                                    size="small"
-                                    sx={{ 
-                                        width: 28, 
-                                        height: 28,
-                                        backgroundColor: 'rgba(0,0,0,0.1)',
-                                        '&:hover': { backgroundColor: 'rgba(0,0,0,0.2)' }
-                                    }}
-                                >
-                                    <RemoveIcon fontSize="small" />
-                                </IconButton>
-                                
-                                <TextField
-                                    value={currentBPM}
-                                    onChange={handleBPMInputChange}
-                                    variant="outlined"
-                                    size="small"
-                                    type="number"
-                                    slotProps={{
-                                        htmlInput: {
-                                            min: Math.round(originalBPM * 0.5),
-                                            max: Math.round(originalBPM * 2.0),
-                                            style: { 
-                                                textAlign: 'center',
-                                                fontSize: '14px',
-                                                fontWeight: 'bold',
-                                                width: '50px'
-                                            }
-                                        }
-                                    }}
-                                    sx={{
-                                        '& .MuiOutlinedInput-root': {
-                                            height: '32px',
-                                            backgroundColor: 'rgba(33, 150, 243, 0.1)',
-                                            '& fieldset': {
-                                                borderColor: '#2196F3',
-                                            },
-                                        }
-                                    }}
-                                />
-                                
-                                <IconButton
-                                    onClick={handleBPMIncrement}
-                                    size="small"
-                                    sx={{ 
-                                        width: 28, 
-                                        height: 28,
-                                        backgroundColor: 'rgba(0,0,0,0.1)',
-                                        '&:hover': { backgroundColor: 'rgba(0,0,0,0.2)' }
-                                    }}
-                                >
-                                    <AddIcon fontSize="small" />
-                                </IconButton>
-                            </Box>
-                        </Box>
-                
-                        <Box
-                            sx={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                width: '100%',
-                                height: '40px',
-                                backgroundColor: '#000000',
-                                borderRadius: '8px',
-                                fontFamily: 'Courier New, Courier, monospace',
-                                fontSize: '20px',
-                                color: '#00FF00',
-                                textShadow: '0 0 10px #00FF00, 0 0 20px #00FF00',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                overflow: 'hidden', // Ensures content respects border radius
-                            }}
-                        >
-                            {formattedTime}
-                        </Box>
-                    </Box>
-                </StyledToolbar>
-            </Container>
-        </AppBar>
+            {/* Transport Controls */}
+            <Box sx={{ display: 'flex', gap: 1 }}>
+                <IconButton
+                    onClick={handlePlay}
+                    color={isPlaying ? 'success' : 'primary'}
+                    size="small"
+                >
+                    {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+                </IconButton>
+                <IconButton onClick={handleStop} color="warning" size="small">
+                    <StopIcon />
+                </IconButton>
+                {handleLoop && (
+                    <IconButton onClick={handleLoop} size="small">
+                        <LoopIcon />
+                    </IconButton>
+                )}
+            </Box>
+
+            {/* Beat Counter with section info */}
+            <BeatCounter
+                currentTime={currentTime}
+                bpm={currentBPM}
+                timeSignature={project?.time_signature || "4/4"}
+                sections={sections}
+            />
+
+            {/* BPM Control */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="caption" sx={{ fontSize: '10px' }}>
+                    BPM:
+                </Typography>
+                <IconButton onClick={handleBPMDecrement} size="small">
+                    <RemoveIcon fontSize="small" />
+                </IconButton>
+                <Typography sx={{ minWidth: '40px', textAlign: 'center', fontWeight: 'bold' }}>
+                    {currentBPM}
+                </Typography>
+                <IconButton onClick={handleBPMIncrement} size="small">
+                    <AddIcon fontSize="small" />
+                </IconButton>
+            </Box>
+
+            {/* Time Display */}
+            <Typography 
+                variant="h6" 
+                sx={{ 
+                    fontFamily: 'monospace',
+                    fontWeight: 'bold',
+                    minWidth: '80px',
+                    textAlign: 'center',
+                    backgroundColor: '#000',
+                    color: '#0f0',
+                    padding: '4px 8px',
+                    borderRadius: '4px'
+                }}
+            >
+                {formattedTime}
+            </Typography>
+
+            {/* Additional Controls */}
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                {onToggleEditSections && (
+                    <IconButton
+                        onClick={onToggleEditSections}
+                        color={isEditingSections ? 'secondary' : 'default'}
+                        size="small"
+                    >
+                        <EditIcon fontSize="small" />
+                    </IconButton>
+                )}
+                <IconButton
+                    onClick={() => setClick(!click)}
+                    color={click ? 'primary' : 'default'}
+                    size="small"
+                >
+                    <MusicNoteIcon fontSize="small" />
+                </IconButton>
+            </Box>
+        </Box>
     );
 };
 

@@ -139,6 +139,60 @@ export const useSectionEditor = (projectId?: string) => {
         }));
     }, [editorState.isEditing]);
 
+    // Función para detectar solapamientos y resolverlos
+    const resolveOverlaps = useCallback((newSection: Section, existingSections: Section[]) => {
+        const overlappingSections = existingSections.filter(section => {
+            // No comparar con la sección que se está editando
+            if (newSection.id === section.id) return false;
+            
+            // Detectar solapamiento
+            return !(newSection.endBar < section.startBar || newSection.startBar > section.endBar);
+        });
+
+        if (overlappingSections.length === 0) {
+            return existingSections;
+        }
+
+        // Resolver solapamientos: actualizar las secciones solapadas
+        return existingSections.map(section => {
+            if (!overlappingSections.includes(section)) {
+                return section;
+            }
+
+            // Si la nueva sección contiene completamente a la existente, eliminarla
+            if (newSection.startBar <= section.startBar && newSection.endBar >= section.endBar) {
+                return null; // Marcar para eliminación
+            }
+
+            // Si la nueva sección está completamente contenida, dividir la existente
+            if (section.startBar < newSection.startBar && section.endBar > newSection.endBar) {
+                // Por simplicidad, mantener solo la parte izquierda
+                return {
+                    ...section,
+                    endBar: newSection.startBar - 1,
+                    updatedAt: new Date()
+                };
+            }
+
+            // Solapamiento parcial - ajustar bordes
+            if (newSection.startBar <= section.startBar) {
+                // Nueva sección empieza antes o en el mismo lugar
+                return {
+                    ...section,
+                    startBar: newSection.endBar + 1,
+                    updatedAt: new Date()
+                };
+            } else {
+                // Nueva sección empieza después
+                return {
+                    ...section,
+                    endBar: newSection.startBar - 1,
+                    updatedAt: new Date()
+                };
+            }
+        }).filter(Boolean) as Section[]; // Eliminar secciones marcadas como null
+    }, []);
+
     // Guardar sección (crear o actualizar)
     const saveSection = useCallback(async () => {
         const { formData, currentSection } = editorState;
@@ -166,22 +220,23 @@ export const useSectionEditor = (projectId?: string) => {
         };
 
         try {
+            // Resolver solapamientos antes de guardar
+            const resolvedSections = resolveOverlaps(sectionData, sections);
+            
             // Actualizar estado local primero
             let updatedSections: Section[];
-            setSections(prev => {
-                if (currentSection) {
-                    updatedSections = prev.map(s => s.id === currentSection.id ? sectionData : s);
-                } else {
-                    updatedSections = [...prev, sectionData];
-                }
-                return updatedSections;
-            });
+            if (currentSection) {
+                // Editando sección existente
+                updatedSections = resolvedSections.map(s => s.id === currentSection.id ? sectionData : s);
+            } else {
+                // Creando nueva sección
+                updatedSections = [...resolvedSections, sectionData];
+            }
+            
+            setSections(updatedSections);
 
-            // Preparar datos para guardar en projects.sections
-            const sectionsForSave = (currentSection ? 
-                sections.map(s => s.id === currentSection.id ? sectionData : s) : 
-                [...sections, sectionData]
-            ).map(section => ({
+            // Preparar datos para guardar en projects.sections usando las secciones resueltas
+            const sectionsForSave = updatedSections.map(section => ({
                 id: section.id,
                 startBar: section.startBar,
                 endBar: section.endBar,

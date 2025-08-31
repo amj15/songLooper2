@@ -73,8 +73,12 @@ export default function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) navigate("/", { replace: true });
-  }, [user]);
+    console.log("Login - user effect:", { user });
+    if (user) {
+      console.log("Login - navigating to home");
+      navigate("/", { replace: true });
+    }
+  }, [user, navigate]);
 
   const handleClickOpen = () => {
     setOpen(true);
@@ -85,27 +89,20 @@ export default function Login() {
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    if (emailError || passwordError) {
-      event.preventDefault();
-      return;
-    }
+    event.preventDefault();
+    
     const data = new FormData(event.currentTarget);
-    console.log({
-      email: data.get('email'),
-      password: data.get('password'),
-    });
-
     const email = data.get("email") as string;
     const password = data.get("password") as string;
 
-    // if (!validateInputs(email, password)) return;
+    if (!validateInputs()) return;
 
     try {
       setLoading(true);
+      console.log("Login attempt:", { email });
       await login(email, password);
-      // Aquí podrías redirigir con react-router: navigate("/")
     } catch (err: any) {
-      console.error(err);
+      console.error("Login error:", err);
       setEmailError(true);
       setPasswordError(true);
       setEmailErrorMessage("Login failed");
@@ -208,9 +205,9 @@ export default function Login() {
               type="submit"
               fullWidth
               variant="contained"
-              onClick={validateInputs}
+              disabled={loading}
             >
-              Sign in
+              {loading ? "Signing in..." : "Sign in"}
             </Button>
             <Link
               component="button"

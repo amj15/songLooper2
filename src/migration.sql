@@ -9,10 +9,11 @@ create table projects (
   created_at timestamp default now()
 );
 
--- Add sections and loop columns to projects table
+-- Add sections, loop, and category columns to projects table
 ALTER TABLE projects 
 ADD COLUMN sections jsonb DEFAULT '[]'::jsonb,
-ADD COLUMN loopstate jsonb DEFAULT '{}'::jsonb;
+ADD COLUMN loopstate jsonb DEFAULT '{}'::jsonb,
+ADD COLUMN category text DEFAULT 'General';
 
 -- Create table for drum notation per bar
 CREATE TABLE bar_notations (

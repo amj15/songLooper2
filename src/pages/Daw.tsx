@@ -199,6 +199,7 @@ export default function Daw() {
                             setClick={setClick}
                             playbackRate={playbackRate}
                             onPlaybackRateChange={handlePlaybackRateChange}
+                            sections={sections}
                         />
                     )}
                 </Box>

@@ -1,17 +1,44 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../services/supabase";
+import {
+  Box,
+  Typography,
+  Paper,
+  CircularProgress,
+  Container,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Chip
+} from "@mui/material";
+import {
+  ExpandMore as ExpandMoreIcon,
+  MusicNote as MusicNoteIcon,
+  Folder as FolderIcon
+} from "@mui/icons-material";
 
 interface Project {
     id: string;
     name: string;
+    category: string;
     time_signature: string;
     tempo: number;
+    created_at: string;
+}
+
+interface ProjectsByCategory {
+  [category: string]: Project[];
 }
 
 export default function Home() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
+    const [projectsByCategory, setProjectsByCategory] = useState<ProjectsByCategory>({});
   
     useEffect(() => {
       const fetchProjects = async () => {
@@ -39,7 +66,19 @@ export default function Home() {
           console.error("Error al cargar proyectos:", error);
           setProjects([]);
         } else {
-          setProjects(data);
+          setProjects(data || []);
+          
+          // Agrupar proyectos por categoría
+          const grouped = (data || []).reduce((acc: ProjectsByCategory, project: Project) => {
+            const category = project.category || 'General';
+            if (!acc[category]) {
+              acc[category] = [];
+            }
+            acc[category].push(project);
+            return acc;
+          }, {});
+          
+          setProjectsByCategory(grouped);
         }
   
         setLoading(false);
@@ -49,24 +88,85 @@ export default function Home() {
     }, []);
   
     return (
-      <div className="bg-white p-6 rounded shadow max-w-2xl mx-auto">
-        <h2 className="text-2xl font-bold mb-4">Tus proyectos</h2>
-  
-        {loading ? (
-          <p>Cargando proyectos...</p>
-        ) : projects.length === 0 ? (
-          <p>No hay proyectos guardados todavía.</p>
-        ) : (
-          <ul className="space-y-3">
-            {projects.map((project) => (
-              <li key={project.id} className="border p-3 rounded hover:bg-gray-50 transition">
-                <Link to={`/daw/${project.id}`} className="text-blue-600 hover:underline">
-                  {project.name || "Sin nombre"} ({project.time_signature}, {project.tempo} BPM)
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Paper elevation={3} sx={{ p: 3 }}>
+          <Typography variant="h4" component="h1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <MusicNoteIcon color="primary" />
+            Tus Proyectos
+          </Typography>
+          
+          {loading ? (
+            <Box display="flex" justifyContent="center" p={4}>
+              <CircularProgress />
+            </Box>
+          ) : projects.length === 0 ? (
+            <Box textAlign="center" p={4}>
+              <Typography variant="h6" color="text.secondary">
+                No hay proyectos guardados todavía
+              </Typography>
+              <Typography variant="body2" color="text.secondary" mt={1}>
+                Crea tu primer proyecto para comenzar
+              </Typography>
+            </Box>
+          ) : (
+            <Box>
+              <Typography variant="body1" color="text.secondary" mb={2}>
+                {projects.length} proyecto{projects.length !== 1 ? 's' : ''} organizados por categoría
+              </Typography>
+              
+              {Object.entries(projectsByCategory).map(([category, categoryProjects]) => (
+                <Accordion key={category} defaultExpanded sx={{ mb: 1 }}>
+                  <AccordionSummary 
+                    expandIcon={<ExpandMoreIcon />}
+                    sx={{ 
+                      backgroundColor: 'action.hover',
+                      '&:hover': { backgroundColor: 'action.selected' }
+                    }}
+                  >
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <FolderIcon color="primary" />
+                      <Typography variant="h6" fontWeight="bold">
+                        {category}
+                      </Typography>
+                      <Chip 
+                        label={categoryProjects.length} 
+                        size="small" 
+                        color="primary" 
+                        variant="outlined" 
+                      />
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ p: 0 }}>
+                    <List dense>
+                      {categoryProjects.map((project) => (
+                        <ListItem
+                          key={project.id}
+                          component={Link}
+                          to={`/daw/${project.id}`}
+                          sx={{
+                            textDecoration: 'none',
+                            color: 'inherit',
+                            '&:hover': { backgroundColor: 'action.hover' },
+                            borderRadius: 1,
+                            m: 0.5
+                          }}
+                        >
+                          <ListItemIcon>
+                            <MusicNoteIcon color="secondary" />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={project.name || "Sin nombre"}
+                            secondary={`${project.time_signature} • ${project.tempo} BPM • ${new Date(project.created_at).toLocaleDateString()}`}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </AccordionDetails>
+                </Accordion>
+              ))}
+            </Box>
+          )}
+        </Paper>
+      </Container>
     );
 }
