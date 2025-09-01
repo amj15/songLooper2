@@ -1,7 +1,7 @@
 import { Box, Typography } from "@mui/material";
 import React, { memo, useCallback, useMemo, useEffect, useRef } from "react";
 import type { Section } from "../types/sections";
-import MusicBar from "./MusicBar";
+import MemoizedMusicBar from "./MemoizedMusicBar";
 
 interface BarData {
     id: number;
@@ -69,10 +69,7 @@ const BarsGrid = memo(({
                 const elapsedInBar = currentTime - bar.start;
                 const activeSubdivision = Math.floor(elapsedInBar / bar.beatDuration);
                 
-                // Debug: Log reducido para evitar spam en console
-                if (i < 2 && activeSubdivision === 0) { // Solo bar 0 y 1, solo en subdivision 0
-                    console.log(`Bar ${i}: time=${currentTime.toFixed(3)}s, subdivision=${activeSubdivision}`);
-                }
+                // Debug logs removidos para mejor rendimiento
                 
                 return {
                     activeBarIndex: i,
@@ -145,6 +142,7 @@ const BarsGrid = memo(({
         return rows;
     }, [barsData, displayBars]);
 
+
     // Renderizar barra de sección sobre los compases
     const renderSectionBar = useCallback((section: Section, rowStartIndex: number) => {
         const sectionStart = Math.max(section.startBar, rowStartIndex);
@@ -196,9 +194,9 @@ const BarsGrid = memo(({
                 )}
             </Box>
         );
-    }, [displayBars]);
+    }, [displayBars, getVariatedColor, isLightColor]);
 
-    const rows = createRows();
+    const rows = useMemo(() => createRows(), [createRows]);
     
     // Referencias para auto-scroll
     const containerRef = useRef<HTMLDivElement>(null);
@@ -210,7 +208,7 @@ const BarsGrid = memo(({
             const activeBarElement = activeBarRefs.current[activeBarIndex];
             if (activeBarElement) {
                 activeBarElement.scrollIntoView({
-                    behavior: 'smooth',
+                    behavior: 'auto', // Cambiado de 'smooth' a 'auto' para mejor timing
                     block: 'nearest',
                     inline: 'center'
                 });
@@ -307,17 +305,17 @@ const BarsGrid = memo(({
                                         }}
                                     />
                                     
-                                    <MusicBar
+                                    <MemoizedMusicBar
                                         barIndex={globalIndex}
                                         subdivisions={bar.totalBeats}
                                         active={activeBarIndex === globalIndex}
                                         activeSubdivision={activeBarIndex === globalIndex ? activeSubdivision : null}
                                         isSelected={selectedBars.includes(globalIndex)}
                                         isLoopActive={isLoopActive}
-                                        onClick={() => onBarClick(globalIndex)}
-                                        onMouseDown={(e) => onBarMouseDown(globalIndex, e)}
-                                        onMouseEnter={() => onBarMouseEnter(globalIndex)}
-                                        onMouseUp={onBarMouseUp}
+                                        onBarClick={onBarClick}
+                                        onBarMouseDown={onBarMouseDown}
+                                        onBarMouseEnter={onBarMouseEnter}
+                                        onBarMouseUp={onBarMouseUp}
                                         section={section}
                                         isEditingMode={isEditingMode}
                                         isLoopSelectionActive={rangeStart !== null}

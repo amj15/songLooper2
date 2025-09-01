@@ -17,11 +17,12 @@ const PulsingCircle = styled(Box, {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  transition: 'all 0.1s ease-out',
-  boxShadow: isActive 
-    ? `0 0 16px ${isFirstBeat ? '#ff4444' : '#2196f3'}, 0 0 32px ${isFirstBeat ? '#ff4444' : '#2196f3'}`
-    : 'none',
-  transform: isActive ? (isFirstBeat ? 'scale(1.2)' : 'scale(1.1)') : 'scale(1)',
+  // SIN animaciones para mejor sincronía
+  // transition: 'all 0.1s ease-out',
+  // boxShadow: isActive 
+  //   ? `0 0 16px ${isFirstBeat ? '#ff4444' : '#2196f3'}, 0 0 32px ${isFirstBeat ? '#ff4444' : '#2196f3'}`
+  //   : 'none',
+  // transform: isActive ? (isFirstBeat ? 'scale(1.2)' : 'scale(1.1)') : 'scale(1)',
 }));
 
 const CounterContainer = styled(Box)(({ theme }) => ({
@@ -100,7 +101,7 @@ const BeatCounter: React.FC<BeatCounterProps> = ({
             color: currentSection.color, 
             fontWeight: 'bold',
             fontFamily: 'monospace',
-            textShadow: `0 0 8px ${currentSection.color}`,
+            // textShadow: `0 0 8px ${currentSection.color}`, // Quitado para mejor rendimiento
             lineHeight: 1
           }}>
             {currentMeasureInSection}

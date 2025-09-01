@@ -11,6 +11,7 @@ import { useLoopControl } from "../hooks/useLoopControls";
 import { useSectionEditor } from "../hooks/useSectionEditor";
 import { useBarNotationEditor } from "../hooks/useBarNotationEditor";
 import { supabase } from "../services/supabase";
+import DrumNotationTest from "../components/DrumNotationTest";
 
 export default function Daw() {
     const { id } = useParams();
@@ -204,6 +205,16 @@ export default function Daw() {
                     )}
                 </Box>
 
+                {/* Drum Notation Test Component - Temporal */}
+                {project && id && (
+                    <Box sx={{ padding: "16px", backgroundColor: "#f5f5f5" }}>
+                        <DrumNotationTest 
+                            projectId={id} 
+                            timeSignature={project.time_signature || "4/4"}
+                        />
+                    </Box>
+                )}
+
                 {/* Bars Grid */}
                 <Box sx={{ flex: 1, overflowY: "auto", padding: "16px", backgroundColor: "#f5f5f5" }}>
                     <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
@@ -327,6 +338,8 @@ export default function Daw() {
                     currentTime={barCurrentTime}
                     barsData={barsData}
                     projectId={id}
+                    timeSignature={project?.time_signature || "4/4"}
+                    subdivisionResolution={16}
                 />
             </Box>
         </>

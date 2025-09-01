@@ -1,45 +1,35 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Drawer,
     Box,
     Typography,
     IconButton,
     Button,
-    Card,
-    CardContent,
-    Chip,
-    ButtonGroup
+    Divider,
+    Alert
 } from '@mui/material';
-import { Close as CloseIcon, PlayArrow as PlayIcon, Stop as StopIcon } from '@mui/icons-material';
-import { Renderer, Stave, StaveNote, Voice, Formatter } from 'vexflow';
+import { Close as CloseIcon, Save as SaveIcon } from '@mui/icons-material';
+import DrumSequencer from './DrumSequencer';
 import type { Section } from '../types/sections';
-import { useMusicalNotation } from '../hooks/useMusicalNotation';
-import { DRUM_INSTRUMENTS } from '../types/drumNotation';
-import type { DrumInstrument } from '../types/drumNotation';
+import { barNotationService, type DrumNote } from '../services/barNotationService';
 
-// Fallback en caso de que la importación falle
-const FALLBACK_INSTRUMENTS = {
-    kick: { displayName: 'Kick', color: '#2E7D32' },
-    snare: { displayName: 'Snare', color: '#D32F2F' },
-    hihat: { displayName: 'Hi-Hat', color: '#F57C00' },
-    crash: { displayName: 'Crash', color: '#7B1FA2' },
-    ride: { displayName: 'Ride', color: '#303F9F' },
-    tom1: { displayName: 'Tom 1', color: '#689F38' },
-};
+// DrumNote type ya está importado desde barNotationService
 
 interface BarNotationDrawerProps {
     open: boolean;
     onClose: () => void;
-    barIndex: number | null;
+    barIndex: number;
     section?: Section;
-    barNumber: number;
-    globalBarNumber: number;
-    isPlaying: boolean;
-    onPlayBar: () => void;
-    onStopBar: () => void;
-    currentTime?: number; // Tiempo actual de reproducción
-    barsData?: Array<{ start: number; end: number; totalBeats: number; beatDuration: number }>; // Datos de los compases
-    projectId?: string; // ID del proyecto para persistencia
+    barNumber?: number;
+    globalBarNumber?: number;
+    isPlaying?: boolean;
+    onPlayBar?: () => void;
+    onStopBar?: () => void;
+    currentTime?: number;
+    barsData?: Array<{ start: number; end: number; totalBeats: number; beatDuration: number }>;
+    projectId?: string;
+    timeSignature?: string;
+    subdivisionResolution?: number;
 }
 
 const BarNotationDrawer: React.FC<BarNotationDrawerProps> = ({
@@ -54,387 +44,198 @@ const BarNotationDrawer: React.FC<BarNotationDrawerProps> = ({
     onStopBar,
     currentTime = 0,
     barsData,
-    projectId
+    projectId,
+    timeSignature = "4/4",
+    subdivisionResolution = 16
 }) => {
-    const svgRef = useRef<HTMLDivElement>(null);
-    const dropZonesRef = useRef<HTMLDivElement>(null);
-    
-    // Estado para drag & drop
-    const [draggedElement, setDraggedElement] = useState<DrumInstrument | null>(null);
-    const [draggedDuration, setDraggedDuration] = useState<number>(1);
-    const [hoveredPosition, setHoveredPosition] = useState<number | null>(null);
-    
-    // Usar el hook de notación musical
-    const {
-        notes,
-        selectedNoteType,
-        timeSignature,
-        totalSubdivisions,
-        setSelectedNoteType,
-        addNote,
-        clearNotes,
-        addDrumNote,
-        canPlaceNote
-    } = useMusicalNotation({ projectId, barIndex });
+    const [notes, setNotes] = useState<DrumNote[]>([]);
+    const [hasChanges, setHasChanges] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
-
-    // Inicializar VexFlow cuando se abra el drawer
+    // Cargar notas existentes cuando se abre el drawer
     useEffect(() => {
-        if (open && svgRef.current) {
-            renderNotation();
+        if (open && projectId) {
+            loadNotation();
         }
-    }, [open, notes]);
+    }, [open, projectId, barIndex]);
 
-    const renderNotation = () => {
-        if (!svgRef.current) return;
-        
-        // Limpiar el contenido anterior
-        svgRef.current.innerHTML = '';
-        
-        // Crear el renderer SVG más amplio
-        const renderer = new Renderer(svgRef.current, Renderer.Backends.SVG);
-        renderer.resize(800, 250);
-        const context = renderer.getContext();
-        
-        // Crear el pentagrama más largo
-        const stave = new Stave(20, 50, 720);
-        stave.addClef('treble').addTimeSignature(`${timeSignature[0]}/${timeSignature[1]}`);
-        stave.setContext(context).draw();
-        
-        // Usar las notas del hook o crear notas de ejemplo si está vacío
-        const staveNotes = notes.length > 0 ? notes : [
-            new StaveNote({ keys: ['c/4'], duration: 'qr' }),
-            new StaveNote({ keys: ['c/4'], duration: 'qr' }),
-            new StaveNote({ keys: ['c/4'], duration: 'qr' }),
-            new StaveNote({ keys: ['c/4'], duration: 'qr' })
-        ];
-        
-        // Verificar que tengamos notas válidas
-        if (staveNotes.length === 0) return;
-        
-        // Crear la voz y añadir las notas
-        const voice = new Voice({ numBeats: timeSignature[0], beatValue: timeSignature[1] });
-        voice.addTickables(staveNotes);
-        
-        // Formatear y renderizar con más espacio
-        new Formatter().joinVoices([voice]).format([voice], 650);
-        voice.draw(context, stave);
+    const loadNotation = async () => {
+        try {
+            if (!projectId) {
+                setNotes([]);
+                return;
+            }
+            
+            const loadedNotes = await barNotationService.loadBarNotation(projectId, barIndex);
+            setNotes(loadedNotes);
+        } catch (error) {
+            console.error('Error loading notation:', error);
+            setNotes([]);
+        }
     };
 
-    // Funciones para drag & drop
-    const handleDragStart = useCallback((drumElement: DrumInstrument, duration: number) => {
-        setDraggedElement(drumElement);
-        setDraggedDuration(duration);
-    }, []);
+    const handleNotesChange = (newNotes: DrumNote[]) => {
+        setNotes(newNotes);
+        setHasChanges(true);
+    };
 
-    const handleDragOver = useCallback((e: React.DragEvent, position: number) => {
-        e.preventDefault();
-        if (draggedElement && canPlaceNote(position, draggedDuration)) {
-            setHoveredPosition(position);
+    const handleSave = async () => {
+        if (!projectId) return;
+        
+        setIsSaving(true);
+        try {
+            await barNotationService.saveBarNotation(
+                projectId, 
+                barIndex, 
+                notes, 
+                timeSignature, 
+                subdivisionResolution
+            );
+            
+            setHasChanges(false);
+            console.log('Notation saved successfully for bar', barIndex);
+        } catch (error) {
+            console.error('Error saving notation:', error);
+            alert('Error al guardar la notación');
+        } finally {
+            setIsSaving(false);
         }
-    }, [draggedElement, draggedDuration, canPlaceNote]);
+    };
 
-    const handleDrop = useCallback((e: React.DragEvent, position: number) => {
-        e.preventDefault();
-        if (draggedElement && addDrumNote) {
-            const success = addDrumNote(draggedElement, position, draggedDuration);
-            if (success) {
-                console.log(`Añadida nota ${draggedElement} en posición ${position}`);
-            }
+    const handleClose = () => {
+        if (hasChanges) {
+            const confirmClose = window.confirm('¿Cerrar sin guardar? Se perderán los cambios.');
+            if (!confirmClose) return;
         }
-        setDraggedElement(null);
-        setHoveredPosition(null);
-    }, [draggedElement, draggedDuration, addDrumNote]);
+        setHasChanges(false);
+        onClose();
+    };
 
-    const handleDragEnd = useCallback(() => {
-        setDraggedElement(null);
-        setHoveredPosition(null);
-    }, []);
-
-    // Verificar que barIndex no sea null antes de renderizar
-    if (barIndex === null) return null;
+    const handleClear = () => {
+        const confirmClear = window.confirm('¿Borrar toda la notación del compás?');
+        if (confirmClear) {
+            setNotes([]);
+            setHasChanges(true);
+        }
+    };
 
     return (
         <Drawer
-            anchor="bottom"
+            anchor="right"
             open={open}
-            onClose={onClose}
-            sx={{
-                '& .MuiDrawer-paper': {
-                    height: '60vh',
-                    borderTopLeftRadius: 16,
-                    borderTopRightRadius: 16,
-                    padding: 2
-                }
-            }}
-            ModalProps={{
+            onClose={handleClose}
+            PaperProps={{
                 sx: {
-                    backgroundColor: 'rgba(0, 0, 0, 0.5)'
+                    width: { xs: '100%', md: '80%', lg: '70%' },
+                    maxWidth: '1200px'
                 }
             }}
         >
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                    Editor de Notación - Compás {globalBarNumber}
-                </Typography>
-                <IconButton onClick={onClose} size="small">
-                    <CloseIcon />
-                </IconButton>
-            </Box>
-
-            <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-                <Card sx={{ flex: 1 }}>
-                    <CardContent>
-                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                            Información del Compás
+            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                {/* Header */}
+                <Box sx={{ 
+                    p: 2, 
+                    borderBottom: '1px solid #e0e0e0',
+                    background: section?.color ? `${section.color}15` : '#f5f5f5'
+                }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                            Editor de Batería
                         </Typography>
-                        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                            <Chip 
-                                label={`Global: ${globalBarNumber}`} 
-                                variant="outlined" 
-                                size="small" 
-                            />
-                            {section && (
-                                <Chip 
-                                    label={`Sección ${section.letter}: ${barNumber}`}
-                                    variant="outlined" 
-                                    size="small"
-                                    sx={{ 
-                                        backgroundColor: section.color + '20',
-                                        borderColor: section.color
-                                    }}
-                                />
-                            )}
-                        </Box>
+                        <IconButton onClick={handleClose} size="large">
+                            <CloseIcon />
+                        </IconButton>
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <Typography variant="body1">
+                            <strong>Compás:</strong> {barNumber || barIndex + 1}
+                            {globalBarNumber && ` (Global: ${globalBarNumber})`}
+                        </Typography>
+                        
                         {section && (
-                            <Typography variant="body2" sx={{ mt: 1 }}>
-                                <strong>{section.type.charAt(0).toUpperCase() + section.type.slice(1)}</strong> - {section.label}
-                            </Typography>
-                        )}
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardContent sx={{ textAlign: 'center' }}>
-                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                            Reproducción
-                        </Typography>
-                        <Button
-                            variant={isPlaying ? "outlined" : "contained"}
-                            startIcon={isPlaying ? <StopIcon /> : <PlayIcon />}
-                            onClick={isPlaying ? onStopBar : onPlayBar}
-                            color={isPlaying ? "secondary" : "primary"}
-                        >
-                            {isPlaying ? 'Parar' : 'Reproducir en Bucle'}
-                        </Button>
-                    </CardContent>
-                </Card>
-            </Box>
-
-            {/* Área principal para la notación musical */}
-            <Card sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="subtitle1">
-                            Notación Musical - Compás {globalBarNumber}
-                        </Typography>
-                        
-                        {/* Controles de edición */}
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                            <Typography variant="body2" sx={{ alignSelf: 'center', mr: 1 }}>
-                                Duración:
-                            </Typography>
-                            <ButtonGroup size="small" variant="outlined">
-                                <Button 
-                                    variant={selectedNoteType === 'w' ? 'contained' : 'outlined'}
-                                    onClick={() => setSelectedNoteType('w')}
-                                >
-                                    Redonda
-                                </Button>
-                                <Button 
-                                    variant={selectedNoteType === 'h' ? 'contained' : 'outlined'}
-                                    onClick={() => setSelectedNoteType('h')}
-                                >
-                                    Blanca
-                                </Button>
-                                <Button 
-                                    variant={selectedNoteType === 'q' ? 'contained' : 'outlined'}
-                                    onClick={() => setSelectedNoteType('q')}
-                                >
-                                    Negra
-                                </Button>
-                                <Button 
-                                    variant={selectedNoteType === '8' ? 'contained' : 'outlined'}
-                                    onClick={() => setSelectedNoteType('8')}
-                                >
-                                    Corchea
-                                </Button>
-                            </ButtonGroup>
-                            <Button 
-                                variant="outlined" 
-                                color="secondary" 
-                                onClick={clearNotes}
-                                size="small"
-                            >
-                                Limpiar
-                            </Button>
-                        </Box>
-                    </Box>
-                    
-                    {/* VexFlow Notation Area with Drop Zones */}
-                    <Box sx={{ position: 'relative', mb: 2 }}>
-                        <Box
-                            ref={svgRef}
-                            sx={{
-                                border: '2px solid #ddd',
-                                borderRadius: 2,
-                                backgroundColor: '#ffffff',
-                                minHeight: 280,
-                                width: '100%',
-                                display: 'flex',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                position: 'relative',
-                                overflow: 'hidden'
-                            }}
-                        />
-                        
-                        {/* Drop Zones Overlay */}
-                        <Box
-                            ref={dropZonesRef}
-                            sx={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                pointerEvents: draggedElement ? 'auto' : 'none',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                paddingX: '50px' // Alinear con el área del pentagrama
-                            }}
-                        >
-                            <Box
-                                sx={{
-                                    display: 'flex',
-                                    width: '720px', // Mismo ancho que el pentagrama
-                                    height: '100px',
-                                    position: 'relative'
-                                }}
-                            >
-                                {Array.from({ length: totalSubdivisions }, (_, index) => (
-                                    <Box
-                                        key={index}
-                                        onDragOver={(e) => handleDragOver(e, index)}
-                                        onDrop={(e) => handleDrop(e, index)}
-                                        sx={{
-                                            flex: 1,
-                                            height: '100%',
-                                            border: draggedElement ? '1px dashed #ccc' : 'none',
-                                            backgroundColor: 
-                                                hoveredPosition === index && canPlaceNote(index, draggedDuration) 
-                                                    ? 'rgba(76, 175, 80, 0.2)' 
-                                                    : hoveredPosition === index 
-                                                        ? 'rgba(244, 67, 54, 0.2)'
-                                                        : 'transparent',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.2s ease'
-                                        }}
-                                        onDragLeave={() => setHoveredPosition(null)}
-                                    >
-                                        {draggedElement && hoveredPosition === index && (
-                                            <Typography variant="caption" sx={{ color: 'rgba(0,0,0,0.5)' }}>
-                                                {canPlaceNote(index, draggedDuration) ? '✓' : '✗'}
-                                            </Typography>
-                                        )}
-                                    </Box>
-                                ))}
+                            <Box sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: 1,
+                                px: 2,
+                                py: 0.5,
+                                borderRadius: '16px',
+                                background: section.color,
+                                color: 'white'
+                            }}>
+                                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                    {section.type.charAt(0).toUpperCase() + section.type.slice(1)} {section.letter}
+                                </Typography>
+                                <Typography variant="body2">
+                                    {section.label}
+                                </Typography>
                             </Box>
-                        </Box>
+                        )}
                     </Box>
-                    
-                    {/* Drum Elements Selector */}
-                    <Box>
-                        <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center' }}>
-                            Arrastra los elementos de batería al pentagrama:
-                        </Typography>
+
+                    {hasChanges && (
+                        <Alert severity="warning" sx={{ mt: 1 }}>
+                            Hay cambios sin guardar
+                        </Alert>
+                    )}
+                </Box>
+
+                {/* Controls */}
+                <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            startIcon={<SaveIcon />}
+                            onClick={handleSave}
+                            disabled={!hasChanges || isSaving}
+                        >
+                            {isSaving ? 'Guardando...' : 'Guardar'}
+                        </Button>
                         
-                        {/* Duración selector */}
-                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 2 }}>
-                            <Typography variant="body2" sx={{ alignSelf: 'center', mr: 1 }}>
-                                Duración:
-                            </Typography>
-                            <ButtonGroup size="small" variant="outlined">
-                                <Button 
-                                    variant={draggedDuration === 4 ? 'contained' : 'outlined'}
-                                    onClick={() => setDraggedDuration(4)}
-                                >
-                                    Negra (4)
-                                </Button>
-                                <Button 
-                                    variant={draggedDuration === 2 ? 'contained' : 'outlined'}
-                                    onClick={() => setDraggedDuration(2)}
-                                >
-                                    Corchea (2)
-                                </Button>
-                                <Button 
-                                    variant={draggedDuration === 1 ? 'contained' : 'outlined'}
-                                    onClick={() => setDraggedDuration(1)}
-                                >
-                                    Semicorchea (1)
-                                </Button>
-                            </ButtonGroup>
-                        </Box>
-                        
-                        {/* Drum elements */}
-                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, flexWrap: 'wrap' }}>
-                            {Object.entries(DRUM_INSTRUMENTS || FALLBACK_INSTRUMENTS).map(([key, config]) => (
-                                <Box
-                                    key={key}
-                                    draggable
-                                    onDragStart={() => handleDragStart(key as DrumInstrument, draggedDuration)}
-                                    onDragEnd={handleDragEnd}
-                                    sx={{
-                                        padding: '8px 16px',
-                                        border: '2px solid',
-                                        borderColor: config.color,
-                                        borderRadius: 2,
-                                        backgroundColor: config.color + '20',
-                                        cursor: 'grab',
-                                        userSelect: 'none',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 1,
-                                        '&:hover': {
-                                            backgroundColor: config.color + '40',
-                                            transform: 'scale(1.05)'
-                                        },
-                                        '&:active': {
-                                            cursor: 'grabbing'
-                                        },
-                                        transition: 'all 0.2s ease'
-                                    }}
-                                >
-                                    <Box
-                                        sx={{
-                                            width: 12,
-                                            height: 12,
-                                            borderRadius: '50%',
-                                            backgroundColor: config.color
-                                        }}
-                                    />
-                                    <Typography variant="caption" sx={{ fontWeight: 'bold', color: config.color }}>
-                                        {config.displayName}
-                                    </Typography>
-                                </Box>
-                            ))}
-                        </Box>
+                        <Button
+                            variant="outlined"
+                            color="error"
+                            onClick={handleClear}
+                            disabled={notes.length === 0}
+                        >
+                            Limpiar Todo
+                        </Button>
+
+                        <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+
+                        {onPlayBar && (
+                            <Button
+                                variant={isPlaying ? "contained" : "outlined"}
+                                color="success"
+                                onClick={isPlaying ? onStopBar : onPlayBar}
+                            >
+                                {isPlaying ? 'Detener' : 'Reproducir Compás'}
+                            </Button>
+                        )}
                     </Box>
-                </CardContent>
-            </Card>
+                </Box>
+
+                {/* Main Content - Drum Sequencer */}
+                <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+                    <DrumSequencer
+                        barIndex={barIndex}
+                        notes={notes}
+                        onNotesChange={handleNotesChange}
+                        timeSignature={timeSignature}
+                        subdivisionResolution={subdivisionResolution}
+                    />
+                </Box>
+
+                {/* Footer */}
+                <Box sx={{ p: 2, borderTop: '1px solid #e0e0e0', background: '#f9f9f9' }}>
+                    <Typography variant="caption" color="textSecondary">
+                        💡 <strong>Tips:</strong> Click para crear/borrar notas • Arrastra horizontalmente para notas largas • 
+                        Click derecho para modificadores • Las líneas doradas marcan los tiempos principales
+                    </Typography>
+                </Box>
+            </Box>
         </Drawer>
     );
 };

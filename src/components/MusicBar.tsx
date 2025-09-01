@@ -122,7 +122,7 @@ const MusicBar = memo(({
         );
     }
 
-    // Modo normal: solo mostrar compás con borde activo
+    // Modo normal: solo mostrar compás con borde activo - SIN animaciones
     return (
         <Box
             sx={{
@@ -136,11 +136,11 @@ const MusicBar = memo(({
                 flexDirection: "column",
                 justifyContent: "center",
                 alignItems: "center",
-                boxShadow: activeBoxShadow,
-                transition: "all 0.2s ease"
+                boxShadow: activeBoxShadow
+                // SIN transition para mejor sincronía
             }}
         >
-            {/* Número de compás */}
+            {/* Número de compás - SIN animaciones */}
             <Typography 
                 variant="h3" 
                 sx={{
@@ -177,9 +177,11 @@ const MusicBar = memo(({
                     borderTop: "1px solid #eee",
                     paddingTop: "8px",
                     marginTop: "8px",
-                    minHeight: "28px" // Asegurar altura mínima
+                    width: "100%",
+                    height: "28px", // Altura fija
+                    minHeight: "28px" // Evitar que se encoja
                 }}>
-                    {/* Barra de loop */}
+                    {/* Barra de loop - flex: 3 para 75% */}
                     <Box 
                         onMouseEnter={() => {
                             setIsLoopButtonHovered(true);
@@ -187,9 +189,9 @@ const MusicBar = memo(({
                         }}
                         onMouseLeave={() => setIsLoopButtonHovered(false)}
                         sx={{
-                            flexGrow: 1,
-                            minWidth: 0, // Permite que se encoja si es necesario
+                            flex: "3", // 75% usando flex
                             height: "24px",
+                            minHeight: "24px",
                             backgroundColor: (() => {
                                 if (isInActiveLoop) return "#4caf50"; // Verde - compás en loop activo
                                 if (isLoopSelectionActive || isLoopButtonHovered) return "#e0e0e0"; // Visible cuando hay selección activa o hover
@@ -200,7 +202,6 @@ const MusicBar = memo(({
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            transition: "all 0.2s ease",
                             opacity: (() => {
                                 if (isInActiveLoop) return 1; // Completamente visible si está en loop activo
                                 if (!isLoopActive && isLoopButtonHovered) return 1; // Visible con hover si no hay loop activo
@@ -244,15 +245,16 @@ const MusicBar = memo(({
                         </Typography>
                     </Box>
                     
-                    {/* SpeedDial fijo a la derecha */}
+                    {/* SpeedDial fijo a la derecha - flex: 1 para 25% */}
                     {(onEditBar || onCloneBar || onDeleteBar) && (
                         <Box sx={{ 
-                            flexShrink: 0, // No se encoge
-                            width: "28px",
-                            height: "28px",
+                            flex: "1", // 25% usando flex
+                            height: "24px",
+                            minHeight: "24px",
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "center"
+                            justifyContent: "center",
+                            flexShrink: 0 // No permitir que se encoja
                         }}>
                             <SpeedDial
                                 ariaLabel="Acciones del compás"
@@ -263,12 +265,16 @@ const MusicBar = memo(({
                                 direction="up"
                                 sx={{
                                     '& .MuiSpeedDial-fab': {
-                                        width: 28,
-                                        height: 28,
+                                        width: 20,
+                                        height: 20,
+                                        minHeight: 20,
                                         backgroundColor: '#1976d2',
                                         '&:hover': {
                                             backgroundColor: '#1565c0'
                                         }
+                                    },
+                                    '& .MuiSpeedDial-fab svg': {
+                                        fontSize: '14px'
                                     }
                                 }}
                             >
