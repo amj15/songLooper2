@@ -14,7 +14,8 @@ import Typography from '@mui/material/Typography';
 import * as React from 'react';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FacebookIcon, GoogleIcon, SongLoopperIcon } from '../components/CustomIcons';
+import { FacebookIcon, GoogleIcon } from '../components/CustomIcons';
+import appLogo from '../assets/appLogo-transparent.png';
 import ForgotPassword from '../components/ForgotPassword';
 import { useAuth } from "../context/AuthContext";
 
@@ -143,11 +144,27 @@ export default function Login() {
   return (
     <SignInContainer direction="column" justifyContent="space-between">
         <Card variant="outlined">
-          <SongLoopperIcon />
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              mb: 2 
+            }}
+          >
+            <img 
+              src={appLogo} 
+              alt="SongLooper" 
+              style={{ 
+                width: '180px', 
+                height: 'auto',
+                maxWidth: '100%'
+              }} 
+            />
+          </Box>
           <Typography
             component="h1"
             variant="h4"
-            sx={{ width: '100%', fontSize: 'clamp(2rem, 10vw, 2.15rem)' }}
+            sx={{ width: '100%', fontSize: 'clamp(2rem, 10vw, 2.15rem)', textAlign: 'center' }}
           >
             Sign in
           </Typography>

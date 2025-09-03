@@ -1,6 +1,8 @@
 import { Box, Typography } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import * as React from "react";
+import { metronomeService } from "../services/metronomeService";
+import { timingService } from "../services/timingService";
 
 const PulsingCircle = styled(Box, {
   shouldForwardProp: (prop) => prop !== 'isActive' && prop !== 'isFirstBeat'
@@ -40,6 +42,12 @@ interface BeatCounterProps {
   currentTime: number;
   bpm: number;
   timeSignature: string; // e.g., "4/4"
+  barsData?: Array<{
+    start: number;
+    end: number;
+    totalBeats: number;
+    beatDuration: number;
+  }>; // Información de los compases para calcular offset
   sections?: Array<{
     id: string;
     startBar: number;
@@ -54,19 +62,87 @@ const BeatCounter: React.FC<BeatCounterProps> = ({
   currentTime, 
   bpm, 
   timeSignature,
+  barsData,
   sections = []
 }) => {
   // Parse time signature
   const [beatsPerMeasure] = timeSignature.split('/').map(Number);
   
-  // Calculate beat duration in seconds
-  const beatDuration = 60 / bpm;
-  const measureDuration = beatDuration * beatsPerMeasure;
+  // Inicializar el servicio de timing una sola vez cuando cambien los datos fundamentales
+  React.useEffect(() => {
+    if (barsData && barsData.length > 0) {
+      timingService.initialize(barsData, bpm, timeSignature);
+    }
+  }, [barsData, bpm, timeSignature]);
+
+  // Obtener la información del beat actual de manera eficiente
+  const currentBeatInfo = React.useMemo(() => {
+    const info = timingService.getBeatAtTime(currentTime);
+    
+    if (info) {
+      return {
+        currentBeatInMeasure: info.beatNumber,
+        currentMeasure: info.measure,
+        totalBeats: info.totalBeats,
+        isOnBeat: info.isOnBeat,
+        exactTime: info.exactTime
+      };
+    }
+
+    // Fallback si el servicio no está inicializado
+    const beatDuration = 60 / bpm;
+    const totalBeats = Math.floor(currentTime / beatDuration);
+    return {
+      currentBeatInMeasure: (totalBeats % beatsPerMeasure) + 1,
+      currentMeasure: Math.floor(totalBeats / beatsPerMeasure) + 1,
+      totalBeats: totalBeats,
+      isOnBeat: true,
+      exactTime: currentTime
+    };
+  }, [currentTime, bpm, beatsPerMeasure]);
+
+  // Optimización: Solo recalcular cuando cambian los beats, no en cada frame
+  const stableBeatInfo = React.useMemo(() => {
+    return currentBeatInfo;
+  }, [currentBeatInfo.totalBeats, currentBeatInfo.currentBeatInMeasure]);
+
+  const { currentBeatInMeasure, currentMeasure, totalBeats, isOnBeat, exactTime } = stableBeatInfo;
   
-  // Calculate current position
-  const totalBeats = Math.floor(currentTime / beatDuration);
-  const currentBeatInMeasure = (totalBeats % beatsPerMeasure) + 1;
-  const currentMeasure = Math.floor(totalBeats / beatsPerMeasure) + 1;
+  // Referencias para optimización
+  const lastBeatRef = React.useRef<number>(-1);
+  const lastMetronomeCallRef = React.useRef<number>(-1);
+  
+  // Disparar sonido de metrónomo con timing ultra-preciso y predicción
+  React.useEffect(() => {
+    // Solo procesar si ha cambiado el beat y evitar duplicados
+    if (totalBeats !== lastBeatRef.current && 
+        totalBeats >= 0 && 
+        totalBeats !== lastMetronomeCallRef.current) {
+      
+      lastBeatRef.current = totalBeats;
+      
+      if (metronomeService.isMetronomeEnabled() && 
+          timingService.isInValidRange(currentTime, barsData || [])) {
+        
+        lastMetronomeCallRef.current = totalBeats;
+        
+        // Calcular el timing exacto usando high-resolution timestamps
+        const now = performance.now();
+        const audioTime = exactTime || currentTime;
+        
+        // Pasar timing de alta precisión
+        metronomeService.playBeatAtPosition(currentBeatInMeasure, totalBeats, audioTime);
+      }
+    }
+  }, [totalBeats, currentBeatInMeasure, currentTime, barsData, exactTime]);
+  
+  // Reset de referencias cuando se para la reproducción
+  React.useEffect(() => {
+    if (currentTime === 0) {
+      lastBeatRef.current = -1;
+      lastMetronomeCallRef.current = -1;
+    }
+  }, [currentTime]);
   
   // Find current section
   const currentSection = sections.find(section => 

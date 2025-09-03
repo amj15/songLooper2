@@ -8,6 +8,7 @@ import Daw from './pages/Daw';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Settings from './pages/Settings';
+import DrumSequencerSandbox from './pages/DrumSequencerSandbox';
 
 import ImportWizard from './pages/ImportWizard';
 import AppTheme from './theme/AppTheme';
@@ -76,6 +77,16 @@ export default function App(props: { disableCustomTheme?: boolean }) {
             <ProtectedRoute>
               <DashboardLayout>
                 <ImportWizard />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/drum-sequencer"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <DrumSequencerSandbox />
               </DashboardLayout>
             </ProtectedRoute>
           }

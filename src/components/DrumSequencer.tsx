@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Box, Typography, IconButton, Tooltip, Menu, MenuItem } from "@mui/material";
+import { Box, Typography, IconButton, Tooltip, Menu, MenuItem, Button, Collapse } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import { type DrumNote } from "../services/barNotationService";
 
 interface DrumSequencerProps {
@@ -12,59 +14,70 @@ interface DrumSequencerProps {
   subdivisionResolution?: number; // 16 para 1/16, 32 para 1/32, etc.
 }
 
-// Mapa de instrumentos
-const DRUM_MAP = {
-  kick: {
-    kick_1: { name: "Kick 1", midi: 35, color: "#e74c3c" },
-    kick_2: { name: "Kick 2", midi: 36, color: "#c0392b" }
+// Instrumentos principales - siempre visibles
+const MAIN_INSTRUMENTS = [
+  { id: "kick", name: "Kick", midi: 36, color: "#e74c3c", modifiers: [] },
+  { 
+    id: "snare", 
+    name: "Snare", 
+    midi: 38, 
+    color: "#f39c12", 
+    modifiers: [
+      { key: "rimshot", name: "Rimshot", midi: 37 }
+    ]
   },
-  snare: {
-    acoustic: { name: "Snare", midi: 38, color: "#f39c12" },
-    electric: { name: "E-Snare", midi: 40, color: "#d68910" },
-    rimshot: { name: "Rimshot", midi: 37, color: "#e67e22" },
-    sidestick: { name: "Sidestick", midi: 39, color: "#ca6f1e" }
+  { 
+    id: "hihat", 
+    name: "Hi-Hat", 
+    midi: 42, 
+    color: "#3498db", 
+    modifiers: [
+      { key: "open", name: "Open", midi: 46 },
+      { key: "pedal", name: "Pedal", midi: 44 }
+    ]
   },
-  hihat: {
-    closed: { name: "Hi-Hat Closed", midi: 42, color: "#3498db" },
-    pedal: { name: "Hi-Hat Pedal", midi: 44, color: "#2980b9" },
-    open: { name: "Hi-Hat Open", midi: 46, color: "#5dade2" }
-  },
-  toms: {
-    high: { name: "High Tom", midi: 50, color: "#9b59b6" },
-    high_mid: { name: "High-Mid Tom", midi: 48, color: "#8e44ad" },
-    low_mid: { name: "Low-Mid Tom", midi: 47, color: "#7d3c98" },
-    low: { name: "Low Tom", midi: 45, color: "#6c3483" },
-    high_floor: { name: "High Floor", midi: 43, color: "#5b2c6f" },
-    low_floor: { name: "Low Floor", midi: 41, color: "#4a235a" }
-  },
-  cymbals: {
-    crash_1: { name: "Crash 1", midi: 49, color: "#1abc9c" },
-    crash_2: { name: "Crash 2", midi: 57, color: "#16a085" },
-    ride_1: { name: "Ride 1", midi: 51, color: "#48c9b0" },
-    ride_bell: { name: "Ride Bell", midi: 53, color: "#45b7b8" },
-    splash: { name: "Splash", midi: 55, color: "#58d68d" },
-    china: { name: "China", midi: 52, color: "#52c41a" }
-  },
-  percussion: {
-    clap: { name: "Clap", midi: 39, color: "#95a5a6" },
-    cowbell: { name: "Cowbell", midi: 56, color: "#7f8c8d" },
-    tambourine: { name: "Tambourine", midi: 54, color: "#bdc3c7" }
-  }
-};
+  { id: "ride", name: "Ride", midi: 51, color: "#48c9b0", modifiers: [] },
+  { id: "crash", name: "Crash", midi: 49, color: "#1abc9c", modifiers: [] },
+  { id: "tom1", name: "Tom 1", midi: 50, color: "#9b59b6", modifiers: [] },
+  { id: "tom2", name: "Tom 2", midi: 48, color: "#8e44ad", modifiers: [] },
+  { id: "floor_tom", name: "Floor Tom", midi: 41, color: "#4a235a", modifiers: [] }
+];
+
+// Instrumentos adicionales - mostrar en desplegable
+const EXTRA_INSTRUMENTS = [
+  { id: "kick_2", name: "Kick 2", midi: 35, color: "#c0392b", modifiers: [] },
+  { id: "e_snare", name: "E-Snare", midi: 40, color: "#d68910", modifiers: [] },
+  { id: "sidestick", name: "Sidestick", midi: 39, color: "#ca6f1e", modifiers: [] },
+  { id: "high_mid_tom", name: "High-Mid Tom", midi: 48, color: "#8e44ad", modifiers: [] },
+  { id: "low_mid_tom", name: "Low-Mid Tom", midi: 47, color: "#7d3c98", modifiers: [] },
+  { id: "low_tom", name: "Low Tom", midi: 45, color: "#6c3483", modifiers: [] },
+  { id: "high_floor", name: "High Floor", midi: 43, color: "#5b2c6f", modifiers: [] },
+  { id: "crash_2", name: "Crash 2", midi: 57, color: "#16a085", modifiers: [] },
+  { id: "ride_bell", name: "Ride Bell", midi: 53, color: "#45b7b8", modifiers: [] },
+  { id: "splash", name: "Splash", midi: 55, color: "#58d68d", modifiers: [] },
+  { id: "china", name: "China", midi: 52, color: "#52c41a", modifiers: [] },
+  { id: "clap", name: "Clap", midi: 39, color: "#95a5a6", modifiers: [] },
+  { id: "cowbell", name: "Cowbell", midi: 56, color: "#7f8c8d", modifiers: [] },
+  { id: "tambourine", name: "Tambourine", midi: 54, color: "#bdc3c7", modifiers: [] }
+];
 
 const MODIFIERS = {
+  // Modificadores generales
   ghost: "Nota fantasma, muy suave",
   accent: "Acento fuerte", 
   roll: "Redoble",
   flam: "Flam",
   drag: "Drag",
   buzz: "Buzz roll",
-  open: "Golpe abierto",
-  closed: "Golpe cerrado",
-  half_open: "Semiabierto",
   choke: "Corte repentino",
-  rimshot: "Rimshot",
-  cross_stick: "Cross stick"
+  cross_stick: "Cross stick",
+  
+  // Modificadores específicos para hi-hat
+  open: "Hi-hat abierto",
+  pedal: "Hi-hat pedal",
+  
+  // Modificadores específicos para snare
+  rimshot: "Rimshot"
 };
 
 // Styled components
@@ -182,18 +195,14 @@ const DrumSequencer: React.FC<DrumSequencerProps> = ({
   const [modifierMenuAnchor, setModifierMenuAnchor] = useState<HTMLElement | null>(null);
   const [selectedNoteIndex, setSelectedNoteIndex] = useState<number | null>(null);
   const [hoveredCell, setHoveredCell] = useState<{instrument: string, position: number} | null>(null);
+  const [showExtraInstruments, setShowExtraInstruments] = useState(false);
   
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Obtener lista plana de instrumentos
-  const allInstruments = Object.entries(DRUM_MAP).flatMap(([category, instruments]) =>
-    Object.entries(instruments).map(([key, data]) => ({
-      id: `${category}_${key}`,
-      name: data.name,
-      color: data.color,
-      category
-    }))
-  );
+  // Obtener instrumentos a mostrar
+  const visibleInstruments = showExtraInstruments 
+    ? [...MAIN_INSTRUMENTS, ...EXTRA_INSTRUMENTS]
+    : MAIN_INSTRUMENTS;
 
   // Calcular número de celdas basado en time signature y resolución
   const parseTimeSignature = (sig: string) => {
@@ -371,15 +380,48 @@ const DrumSequencer: React.FC<DrumSequencerProps> = ({
     }
   }, [isDragging]);
 
+  // Obtener modificadores disponibles para un instrumento
+  const getAvailableModifiers = useCallback((instrumentId: string) => {
+    const allModifiers = Object.entries(MODIFIERS);
+    
+    // Filtrar modificadores según el instrumento
+    return allModifiers.filter(([key, description]) => {
+      if (instrumentId === 'hihat') {
+        // Hi-hat puede tener: open, pedal, y modificadores generales (excepto rimshot)
+        return !['rimshot'].includes(key);
+      } else if (instrumentId === 'snare') {
+        // Snare puede tener: rimshot y modificadores generales (excepto open, pedal)
+        return !['open', 'pedal'].includes(key);
+      } else {
+        // Otros instrumentos solo modificadores generales
+        return !['open', 'pedal', 'rimshot'].includes(key);
+      }
+    });
+  }, []);
+
   return (
     <SequencerContainer>
       <Box sx={{ mb: 2 }}>
         <Typography variant="h6" sx={{ color: 'white', mb: 1 }}>
           Compás {barIndex + 1} - Editor de Batería
         </Typography>
-        <Typography variant="caption" sx={{ color: '#888' }}>
+        <Typography variant="caption" sx={{ color: '#888', display: 'block', mb: 1 }}>
           Click para crear/borrar notas • Arrastra para crear notas largas • Click derecho para modificadores
         </Typography>
+        
+        {/* Botón para mostrar/ocultar instrumentos adicionales */}
+        <Button
+          onClick={() => setShowExtraInstruments(!showExtraInstruments)}
+          startIcon={showExtraInstruments ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+          size="small"
+          sx={{ 
+            color: '#888', 
+            textTransform: 'none',
+            '&:hover': { color: 'white' }
+          }}
+        >
+          {showExtraInstruments ? 'Ocultar' : 'Mostrar más'} instrumentos ({EXTRA_INSTRUMENTS.length})
+        </Button>
       </Box>
 
       {/* Timeline header */}
@@ -396,7 +438,7 @@ const DrumSequencer: React.FC<DrumSequencerProps> = ({
 
       {/* Grid */}
       <GridContainer ref={gridRef} totalCells={totalCells}>
-        {allInstruments.map(instrument => (
+        {visibleInstruments.map(instrument => (
           <React.Fragment key={instrument.id}>
             {/* Label del instrumento */}
             <InstrumentLabel sx={{ background: `${instrument.color}22` }}>
@@ -479,27 +521,29 @@ const DrumSequencer: React.FC<DrumSequencerProps> = ({
         open={Boolean(modifierMenuAnchor)}
         onClose={() => setModifierMenuAnchor(null)}
       >
-        {Object.entries(MODIFIERS).map(([key, description]) => {
-          const isActive = selectedNoteIndex !== null && 
-            notes[selectedNoteIndex]?.modifiers?.includes(key);
-          
-          return (
-            <MenuItem
-              key={key}
-              onClick={() => handleModifierSelect(key)}
-              sx={{ 
-                background: isActive ? 'rgba(76, 175, 80, 0.2)' : 'transparent',
-                '&:hover': { background: 'rgba(76, 175, 80, 0.1)' }
-              }}
-            >
-              <Tooltip title={description} placement="left">
-                <Typography sx={{ textTransform: 'capitalize' }}>
-                  {isActive ? '✓ ' : ''}{key.replace('_', ' ')}
-                </Typography>
-              </Tooltip>
-            </MenuItem>
-          );
-        })}
+        {selectedNoteIndex !== null && 
+          getAvailableModifiers(notes[selectedNoteIndex]?.instrument || '').map(([key, description]) => {
+            const isActive = selectedNoteIndex !== null && 
+              notes[selectedNoteIndex]?.modifiers?.includes(key);
+            
+            return (
+              <MenuItem
+                key={key}
+                onClick={() => handleModifierSelect(key)}
+                sx={{ 
+                  background: isActive ? 'rgba(76, 175, 80, 0.2)' : 'transparent',
+                  '&:hover': { background: 'rgba(76, 175, 80, 0.1)' }
+                }}
+              >
+                <Tooltip title={description} placement="left">
+                  <Typography sx={{ textTransform: 'capitalize' }}>
+                    {isActive ? '✓ ' : ''}{key.replace('_', ' ')}
+                  </Typography>
+                </Tooltip>
+              </MenuItem>
+            );
+          })
+        }
       </Menu>
 
     </SequencerContainer>

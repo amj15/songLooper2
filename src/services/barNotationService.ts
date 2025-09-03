@@ -28,26 +28,6 @@ export interface ProjectDrumTracks {
 
 class BarNotationService {
   
-  // Verificar estructura de tabla para debug
-  async checkTableStructure(): Promise<void> {
-    try {
-      console.log('Checking table structure...');
-      
-      // Intentar hacer una consulta simple para ver si la tabla existe
-      const { data, error } = await supabase
-        .from('bar_notations')
-        .select('*')
-        .limit(1);
-      
-      if (error) {
-        console.error('Table structure check failed:', error);
-      } else {
-        console.log('Table exists and is accessible');
-      }
-    } catch (error) {
-      console.error('Error checking table structure:', error);
-    }
-  }
   
   // Cargar notación de un compás específico
   async loadBarNotation(projectId: string, barIndex: number): Promise<DrumNote[]> {
@@ -74,40 +54,6 @@ class BarNotationService {
     }
   }
 
-  // Método simple de guardado para debug
-  async saveBarNotationSimple(
-    projectId: string, 
-    barIndex: number, 
-    notes: DrumNote[]
-  ): Promise<void> {
-    try {
-      console.log('Simple save attempt with minimal data...');
-      
-      const simpleData = {
-        project_id: projectId,
-        bar_index: barIndex,
-        notes: notes
-      };
-      
-      console.log('Simple data:', JSON.stringify(simpleData, null, 2));
-
-      const { data, error } = await supabase
-        .from('bar_notations')
-        .insert(simpleData)
-        .select();
-
-      if (error) {
-        console.error('Simple save error:', error);
-        throw error;
-      }
-      
-      console.log('Simple save successful:', data);
-      
-    } catch (error) {
-      console.error('Error in simple save:', error);
-      throw error;
-    }
-  }
 
   // Guardar notación de un compás
   async saveBarNotation(
@@ -128,8 +74,6 @@ class BarNotationService {
         subdivision_resolution: subdivisionResolution,
         notes: notes
       };
-
-      console.log('Attempting to save notation data:', JSON.stringify(notationData, null, 2));
 
       // Intentar insertar primero, luego actualizar si existe
       const { data: existingData, error: checkError } = await supabase
@@ -161,17 +105,14 @@ class BarNotationService {
       const { data, error } = result;
 
       if (error) {
-        console.error('Supabase error details:', error);
         throw new Error(`Database error: ${error.message} (Code: ${error.code})`);
       }
 
-      console.log('Save successful:', data);
-
-      // Actualizar el track header después de guardar (opcional para debug)
+      // Actualizar el track header después de guardar
       try {
         await this.updateProjectDrumTracks(projectId, subdivisionResolution);
       } catch (trackError) {
-        console.warn('Track header update failed, but notation was saved:', trackError);
+        // Silenciar error del track header, lo importante es que se guardó la notación
       }
       
     } catch (error) {
@@ -230,7 +171,6 @@ class BarNotationService {
 
       if (error) throw error;
       
-      console.log('Updated drum tracks header:', trackData);
       
     } catch (error) {
       console.error('Error updating project drum tracks:', error);

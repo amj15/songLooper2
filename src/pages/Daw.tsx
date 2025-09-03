@@ -11,7 +11,6 @@ import { useLoopControl } from "../hooks/useLoopControls";
 import { useSectionEditor } from "../hooks/useSectionEditor";
 import { useBarNotationEditor } from "../hooks/useBarNotationEditor";
 import { supabase } from "../services/supabase";
-import DrumNotationTest from "../components/DrumNotationTest";
 
 export default function Daw() {
     const { id } = useParams();
@@ -30,7 +29,7 @@ export default function Daw() {
     const barsData = useBarsData(project, audioRef);
     
     // Custom hooks para separar la lógica
-    const { isPlaying, currentTime, play, stop, updateLoopData } = useAudioPlayback(audioRef, currentTimeRef);
+    const { isPlaying, currentTime, play, pause, stop, seekTo, updateLoopData } = useAudioPlayback(audioRef, currentTimeRef);
     const { 
         isLoopActive, 
         selectedBars, 
@@ -89,9 +88,9 @@ export default function Daw() {
 
     // Función para saltar la reproducción a un compás específico
     const handleSeekToBar = (barIndex: number) => {
-        if (audioRef.current && barsData[barIndex]) {
+        if (barsData[barIndex]) {
             const targetTime = barsData[barIndex].start;
-            audioRef.current.currentTime = targetTime;
+            seekTo(targetTime); // Usar la nueva función seekTo
             console.log(`Saltando al compás ${barIndex + 1} en tiempo ${targetTime.toFixed(3)}s`);
         }
     };
@@ -191,7 +190,7 @@ export default function Daw() {
                             project={project}
                             isPlaying={isPlaying}
                             currentTime={currentTime}
-                            handlePlay={() => play(isLoopActive, loopStart, loopEnd)}
+                            handlePlay={() => isPlaying ? pause() : play(isLoopActive, loopStart, loopEnd)}
                             handleStop={() => stop(isLoopActive, loopStart)}
                             handleLoop={toggleLoop}
                             onToggleEditSections={toggleEditMode}
@@ -200,20 +199,13 @@ export default function Daw() {
                             setClick={setClick}
                             playbackRate={playbackRate}
                             onPlaybackRateChange={handlePlaybackRateChange}
+                            audioRef={audioRef}
                             sections={sections}
+                            barsData={barsData}
                         />
                     )}
                 </Box>
 
-                {/* Drum Notation Test Component - Temporal */}
-                {project && id && (
-                    <Box sx={{ padding: "16px", backgroundColor: "#f5f5f5" }}>
-                        <DrumNotationTest 
-                            projectId={id} 
-                            timeSignature={project.time_signature || "4/4"}
-                        />
-                    </Box>
-                )}
 
                 {/* Bars Grid */}
                 <Box sx={{ flex: 1, overflowY: "auto", padding: "16px", backgroundColor: "#f5f5f5" }}>

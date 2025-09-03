@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { styled } from '@mui/material/styles';
-import Divider, { dividerClasses } from '@mui/material/Divider';
 import Menu from '@mui/material/Menu';
 import MuiMenuItem from '@mui/material/MenuItem';
 import { paperClasses } from '@mui/material/Paper';
@@ -10,19 +9,32 @@ import ListItemIcon, { listItemIconClasses } from '@mui/material/ListItemIcon';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import MenuButton from './MenuButton';
+import { useAuth } from '../context/AuthContext';
 
 const MenuItem = styled(MuiMenuItem)({
   margin: '2px 0',
 });
 
 export default function OptionsMenu() {
+  const { logout } = useAuth();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
+  
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
+  
   const handleClose = () => {
     setAnchorEl(null);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      handleClose();
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
   };
   return (
     <React.Fragment>
@@ -48,19 +60,10 @@ export default function OptionsMenu() {
           [`& .${paperClasses.root}`]: {
             padding: 0,
           },
-          [`& .${dividerClasses.root}`]: {
-            margin: '4px -4px',
-          },
         }}
       >
-        <MenuItem onClick={handleClose}>Profile</MenuItem>
-        <MenuItem onClick={handleClose}>My account</MenuItem>
-        <Divider />
-        <MenuItem onClick={handleClose}>Add another account</MenuItem>
-        <MenuItem onClick={handleClose}>Settings</MenuItem>
-        <Divider />
         <MenuItem
-          onClick={handleClose}
+          onClick={handleLogout}
           sx={{
             [`& .${listItemIconClasses.root}`]: {
               ml: 'auto',

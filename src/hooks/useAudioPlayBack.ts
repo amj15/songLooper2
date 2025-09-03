@@ -27,15 +27,17 @@ export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement | nu
                     currentTimeRef.current = loopStart;
                     setCurrentTime(loopStart);
                     
-                    console.log(`Loop jump: ${newTime.toFixed(3)}s -> ${loopStart.toFixed(3)}s (end was ${loopEnd.toFixed(3)}s)`);
                 }
             }
             
-            // Optimización: actualizar solo si hay cambio significativo o cambio de subdivisión
+            // Optimización ultra-precisa: actualizar en cambios de subdivisión o tiempos críticos
             const timeDiff = Math.abs(newTime - lastUpdateTimeRef.current);
+            const currentSubdivision = Math.floor(newTime * 16); // 16th note precision
+            const lastSubdivision = Math.floor(lastUpdateTimeRef.current * 16);
+            
             const shouldUpdate = timeDiff > 0.001 && (
-                timeDiff > 0.01 || // Cambio mayor a 10ms
-                Math.floor(newTime * 4) !== Math.floor(lastUpdateTimeRef.current * 4) // Cambio de 16th note
+                currentSubdivision !== lastSubdivision || // Cambio de 16th note
+                timeDiff > 0.008 // Cambio mayor a 8ms para suavidad visual
             );
             
             if (shouldUpdate) {
@@ -97,7 +99,6 @@ export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement | nu
                 setCurrentTime(actualTime);
                 lastUpdateTimeRef.current = actualTime;
                 
-                console.log(`Play sync: pre=${prePlayTime.toFixed(3)}s, actual=${actualTime.toFixed(3)}s, diff=${(actualTime - prePlayTime).toFixed(3)}s`);
             }
         });
         
@@ -118,10 +119,13 @@ export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement | nu
         if (audioRef.current) {
             audioRef.current.pause();
             
-            // Si hay loop activo, ir al inicio del loop, sino ir al principio
-            const targetTime = isLoopActive && loopStart !== null ? loopStart : 0;
+            // STOP siempre va a 0, no al loop start
+            const targetTime = 0;
             audioRef.current.currentTime = targetTime;
             currentTimeRef.current = targetTime;
+            setCurrentTime(targetTime); // Actualizar inmediatamente el estado
+            lastUpdateTimeRef.current = targetTime;
+            
         }
     }, [audioRef, currentTimeRef]);
 
@@ -146,12 +150,10 @@ export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement | nu
                     currentTimeRef.current = audioRef.current.currentTime;
                     setCurrentTime(audioRef.current.currentTime);
                     lastUpdateTimeRef.current = audioRef.current.currentTime;
-                    console.log('Audio metadata loaded and synchronized');
                 }
             };
             
             const handleCanPlayThrough = () => {
-                console.log('Audio buffer ready for smooth playback');
             };
             
             audio.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -178,12 +180,24 @@ export const useAudioPlayback = (audioRef: React.RefObject<HTMLAudioElement | nu
         };
     }, [isPlaying, updateTime]);
 
+    // Función para saltar a un tiempo específico (seeking)
+    const seekTo = useCallback((targetTime: number) => {
+        if (audioRef.current) {
+            audioRef.current.currentTime = targetTime;
+            currentTimeRef.current = targetTime;
+            setCurrentTime(targetTime); // Actualizar inmediatamente el estado
+            lastUpdateTimeRef.current = targetTime;
+            
+        }
+    }, [audioRef, currentTimeRef]);
+
     return {
         isPlaying,
         currentTime, // Exponemos currentTime para que otros componentes no necesiten RAF
         play,
         pause,
         stop,
+        seekTo, // Nueva función para seeking
         updateLoopData // Exponemos esta función para actualizar loop data
     };
 };

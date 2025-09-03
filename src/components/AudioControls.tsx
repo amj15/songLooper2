@@ -5,12 +5,16 @@ import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
-import { Box, Button, IconButton, Typography, TextField } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
+import VolumeUpIcon from "@mui/icons-material/VolumeUp";
+import VolumeOffIcon from "@mui/icons-material/VolumeOff";
+import { Box, Button, IconButton, Typography, TextField, Slider } from "@mui/material";
 import * as React from 'react';
 import { supabase } from '../services/supabase';
 import BeatCounter from './BeatCounter';
+import { metronomeService } from '../services/metronomeService';
+import { volumeService } from '../services/volumeService';
 
 interface AudioControlsProps {
     project: any;
@@ -23,6 +27,7 @@ interface AudioControlsProps {
     isEditingSections?: boolean;
     playbackRate?: number;
     onPlaybackRateChange?: (rate: number) => void;
+    audioRef?: React.RefObject<HTMLAudioElement>; // Nueva prop para el audio element
     sections?: Array<{
         id: string;
         startBar: number;
@@ -30,6 +35,12 @@ interface AudioControlsProps {
         label: string;
         letter: string;
         color: string;
+    }>;
+    barsData?: Array<{
+        start: number;
+        end: number;
+        totalBeats: number;
+        beatDuration: number;
     }>;
 }
 
@@ -46,13 +57,33 @@ const AudioControls: React.FC<AudioControlsProps & { click: boolean; setClick: R
     setClick,
     playbackRate = 1.0,
     onPlaybackRateChange,
-    sections = []
+    audioRef,
+    sections = [],
+    barsData
 }) => {
     // Estados para edición de nombre y categoría
     const [isEditing, setIsEditing] = React.useState(false);
     const [editName, setEditName] = React.useState(project?.name || '');
     const [editCategory, setEditCategory] = React.useState(project?.category || 'General');
     const [isSaving, setIsSaving] = React.useState(false);
+    
+    // Estados para el metrónomo - con persistencia
+    const [isMetronomeEnabled, setIsMetronomeEnabled] = React.useState(() => {
+        try {
+            const saved = localStorage.getItem('daw-metronomeEnabled');
+            return saved !== null ? JSON.parse(saved) : false;
+        } catch {
+            return false;
+        }
+    });
+    
+    // Estados para los volúmenes - inicializados desde volumeService
+    const [trackVolume, setTrackVolume] = React.useState(() => volumeService.getTrackVolume());
+    const [clickVolume, setClickVolume] = React.useState(() => volumeService.getClickVolume());
+    const [masterVolume, setMasterVolume] = React.useState(() => volumeService.getMasterVolume());
+    
+    // Estado para el offset del metrónomo
+    const [metronomeOffset, setMetronomeOffset] = React.useState(() => metronomeService.getManualOffset());
 
     // Actualizar estados cuando cambie el proyecto
     React.useEffect(() => {
@@ -61,6 +92,22 @@ const AudioControls: React.FC<AudioControlsProps & { click: boolean; setClick: R
             setEditCategory(project.category || 'General');
         }
     }, [project]);
+
+    // Conectar audioRef con volumeService
+    React.useEffect(() => {
+        if (audioRef?.current) {
+            volumeService.setAudioElement(audioRef.current);
+        }
+    }, [audioRef]);
+
+    // Inicializar volúmenes y metrónomo
+    React.useEffect(() => {
+        volumeService.setTrackVolume(trackVolume);
+        volumeService.setClickVolume(clickVolume);
+        volumeService.setMasterVolume(masterVolume);
+        metronomeService.setEnabled(isMetronomeEnabled); // Sincronizar estado del metrónomo
+        metronomeService.refreshVolume();
+    }, [trackVolume, clickVolume, masterVolume, isMetronomeEnabled]);
 
     // Función para guardar cambios
     const handleSaveChanges = async () => {
@@ -136,6 +183,47 @@ const AudioControls: React.FC<AudioControlsProps & { click: boolean; setClick: R
         handleBPMChange(currentBPM - 5);
     };
 
+    // Funciones del metrónomo
+    const handleMetronomeToggle = () => {
+        const newEnabled = !isMetronomeEnabled;
+        setIsMetronomeEnabled(newEnabled);
+        metronomeService.setEnabled(newEnabled);
+        
+        // Persistir estado del metrónomo
+        try {
+            localStorage.setItem('daw-metronomeEnabled', JSON.stringify(newEnabled));
+        } catch (error) {
+            console.warn('Error saving metronome state:', error);
+        }
+    };
+
+    // Funciones de volumen
+    const handleTrackVolumeChange = (event: Event, newValue: number | number[]) => {
+        const volume = Array.isArray(newValue) ? newValue[0] : newValue;
+        setTrackVolume(volume);
+    };
+
+    const handleClickVolumeChange = (event: Event, newValue: number | number[]) => {
+        const volume = Array.isArray(newValue) ? newValue[0] : newValue;
+        setClickVolume(volume);
+    };
+
+    const handleMasterVolumeChange = (event: Event, newValue: number | number[]) => {
+        const volume = Array.isArray(newValue) ? newValue[0] : newValue;
+        setMasterVolume(volume);
+    };
+
+    // Funciones para el offset del metrónomo
+    const handleOffsetDecrease = () => {
+        metronomeService.adjustOffset(-5);
+        setMetronomeOffset(metronomeService.getManualOffset());
+    };
+
+    const handleOffsetIncrease = () => {
+        metronomeService.adjustOffset(5);
+        setMetronomeOffset(metronomeService.getManualOffset());
+    };
+
     return (
         <Box sx={{ 
             display: 'flex', 
@@ -149,6 +237,13 @@ const AudioControls: React.FC<AudioControlsProps & { click: boolean; setClick: R
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 {isEditing ? (
                     <>
+                        <TextField
+                            size="small"
+                            value={editCategory}
+                            onChange={(e) => setEditCategory(e.target.value)}
+                            placeholder="Categoría"
+                            sx={{ width: '100px' }}
+                        />
                         <TextField
                             size="small"
                             value={editName}
@@ -199,6 +294,7 @@ const AudioControls: React.FC<AudioControlsProps & { click: boolean; setClick: R
                 currentTime={currentTime}
                 bpm={currentBPM}
                 timeSignature={project?.time_signature || "4/4"}
+                barsData={barsData}
                 sections={sections}
             />
 
@@ -216,6 +312,98 @@ const AudioControls: React.FC<AudioControlsProps & { click: boolean; setClick: R
                 <IconButton onClick={handleBPMIncrement} size="small">
                     <AddIcon fontSize="small" />
                 </IconButton>
+            </Box>
+
+            {/* Volume Controls */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                {/* Track Volume */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="caption" sx={{ fontSize: '10px', minWidth: '35px' }}>
+                        Track:
+                    </Typography>
+                    <Slider
+                        value={trackVolume}
+                        onChange={handleTrackVolumeChange}
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        size="small"
+                        sx={{ width: 50 }}
+                        title={`Track: ${Math.round(trackVolume * 100)}%`}
+                    />
+                    <Typography variant="caption" sx={{ fontSize: '9px', minWidth: '25px', color: '#666' }}>
+                        {Math.round(trackVolume * 100)}%
+                    </Typography>
+                </Box>
+
+                {/* Click Volume */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <IconButton 
+                        onClick={handleMetronomeToggle}
+                        size="small"
+                        color={isMetronomeEnabled ? 'primary' : 'default'}
+                        title={isMetronomeEnabled ? 'Desactivar claqueta' : 'Activar claqueta'}
+                    >
+                        {isMetronomeEnabled ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
+                    </IconButton>
+                    
+                    <Slider
+                        value={clickVolume}
+                        onChange={handleClickVolumeChange}
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        size="small"
+                        sx={{ width: 50 }}
+                        title={`Click: ${Math.round(clickVolume * 100)}%`}
+                        disabled={!isMetronomeEnabled}
+                    />
+                    <Typography variant="caption" sx={{ fontSize: '9px', minWidth: '25px', color: isMetronomeEnabled ? '#666' : '#999' }}>
+                        {Math.round(clickVolume * 100)}%
+                    </Typography>
+                </Box>
+
+                {/* Metronome Offset Control */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontSize: '9px', minWidth: '30px', color: '#666' }}>
+                        Offset:
+                    </Typography>
+                    <IconButton onClick={handleOffsetDecrease} size="small" sx={{ minWidth: '20px', width: '20px', height: '20px' }}>
+                        <RemoveIcon fontSize="small" />
+                    </IconButton>
+                    <Typography variant="caption" sx={{ 
+                        fontSize: '9px', 
+                        minWidth: '35px', 
+                        textAlign: 'center', 
+                        color: metronomeOffset !== 0 ? '#ff6600' : '#666',
+                        fontWeight: metronomeOffset !== 0 ? 'bold' : 'normal'
+                    }}>
+                        {metronomeOffset >= 0 ? '+' : ''}{metronomeOffset}ms
+                    </Typography>
+                    <IconButton onClick={handleOffsetIncrease} size="small" sx={{ minWidth: '20px', width: '20px', height: '20px' }}>
+                        <AddIcon fontSize="small" />
+                    </IconButton>
+                </Box>
+
+                {/* Master Volume */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="caption" sx={{ fontSize: '10px', minWidth: '40px', fontWeight: 'bold' }}>
+                        Master:
+                    </Typography>
+                    <Slider
+                        value={masterVolume}
+                        onChange={handleMasterVolumeChange}
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        size="small"
+                        sx={{ width: 50 }}
+                        title={`Master: ${Math.round(masterVolume * 100)}%`}
+                    />
+                    <Typography variant="caption" sx={{ fontSize: '9px', minWidth: '25px', color: '#333', fontWeight: 'bold' }}>
+                        {Math.round(masterVolume * 100)}%
+                    </Typography>
+                </Box>
             </Box>
 
             {/* Time Display */}

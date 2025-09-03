@@ -10,6 +10,7 @@ import {
 } from '@mui/material';
 import { Close as CloseIcon, Save as SaveIcon } from '@mui/icons-material';
 import DrumSequencer from './DrumSequencer';
+import DrumScorePreview from './DrumScorePreview';
 import type { Section } from '../types/sections';
 import { barNotationService, type DrumNote } from '../services/barNotationService';
 
@@ -226,6 +227,17 @@ const BarNotationDrawer: React.FC<BarNotationDrawerProps> = ({
                         timeSignature={timeSignature}
                         subdivisionResolution={subdivisionResolution}
                     />
+
+                    {/* Score Preview */}
+                    <Box sx={{ mt: 3 }}>
+                        <DrumScorePreview
+                            notes={notes}
+                            timeSignature={timeSignature}
+                            subdivisionResolution={subdivisionResolution}
+                            width={500}
+                            height={150}
+                        />
+                    </Box>
                 </Box>
 
                 {/* Footer */}

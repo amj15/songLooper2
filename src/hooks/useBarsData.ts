@@ -13,13 +13,6 @@ export const useBarsData = (project: any, audioRef: React.RefObject<HTMLAudioEle
         if (!(window as any).debuggedProjects?.has?.(debugKey)) {
             (window as any).debuggedProjects = (window as any).debuggedProjects || new Set();
             (window as any).debuggedProjects.add(debugKey);
-            console.log('Project data:', {
-                bpm,
-                beatsPerBar,
-                beatDuration,
-                firstBarMs: project.bars[0],
-                secondBarMs: project.bars[1]
-            });
         }
         
         // Calcular el offset basado en la primera barra para alinear el downbeat
@@ -32,7 +25,6 @@ export const useBarsData = (project: any, audioRef: React.RefObject<HTMLAudioEle
         const correctedOffset = offsetBeats * beatDuration;
         
         if (!(window as any).debuggedProjects?.has?.(debugKey)) {
-            console.log(`Timing correction: firstBar=${firstBarSeconds.toFixed(3)}s, offset=${correctedOffset.toFixed(3)}s`);
         }
         
         return project.bars.map((barStartMs: number, index: number) => {
@@ -51,7 +43,6 @@ export const useBarsData = (project: any, audioRef: React.RefObject<HTMLAudioEle
             
             // Debug: Log solo las primeras barras y solo una vez
             if (index < 3 && !(window as any).debuggedProjects?.has?.(debugKey)) {
-                console.log(`Bar ${index} corrected:`, barData, `(original: ${originalBarStart.toFixed(3)}s)`);
             }
             
             return barData;

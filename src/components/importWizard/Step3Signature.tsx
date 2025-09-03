@@ -1,19 +1,19 @@
 import { PlayArrow, SkipPrevious, Stop } from "@mui/icons-material";
 import {
-    Alert,
-    Box,
-    Button,
-    CircularProgress,
-    FormControl,
-    InputLabel,
-    MenuItem,
-    Select,
-    Typography
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  Typography
 } from "@mui/material";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const REQUIRED_TAPS = 5;
-const TIME_SIGNATURES = ["4/4", "3/4", "6/8", "2/4"];
+const TIME_SIGNATURES = ["4/4", "3/4", "6/8", "2/4", "12/4", "12/8"];
 const SEMICORCHEA = 1 / 16;
 
 interface SongData {

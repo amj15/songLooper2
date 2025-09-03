@@ -4,9 +4,7 @@ import type { Section } from "../types/sections";
 
 interface MemoizedMusicBarProps {
     barIndex: number;
-    subdivisions: number;
     active: boolean;
-    activeSubdivision: number | null;
     isSelected: boolean;
     isLoopActive: boolean;
     section?: Section;
@@ -26,9 +24,7 @@ interface MemoizedMusicBarProps {
 
 const MemoizedMusicBar = memo<MemoizedMusicBarProps>(({
     barIndex,
-    subdivisions,
     active,
-    activeSubdivision,
     isSelected,
     isLoopActive,
     section,
@@ -48,9 +44,7 @@ const MemoizedMusicBar = memo<MemoizedMusicBarProps>(({
     return (
         <MusicBar
             barIndex={barIndex}
-            subdivisions={subdivisions}
             active={active}
-            activeSubdivision={activeSubdivision}
             isSelected={isSelected}
             isLoopActive={isLoopActive}
             onClick={() => onBarClick(barIndex)}
@@ -73,7 +67,6 @@ const MemoizedMusicBar = memo<MemoizedMusicBarProps>(({
     return (
         prevProps.barIndex === nextProps.barIndex &&
         prevProps.active === nextProps.active &&
-        prevProps.activeSubdivision === nextProps.activeSubdivision &&
         prevProps.isSelected === nextProps.isSelected &&
         prevProps.isLoopActive === nextProps.isLoopActive &&
         prevProps.isEditingMode === nextProps.isEditingMode &&

@@ -307,9 +307,7 @@ const BarsGrid = memo(({
                                     
                                     <MemoizedMusicBar
                                         barIndex={globalIndex}
-                                        subdivisions={bar.totalBeats}
                                         active={activeBarIndex === globalIndex}
-                                        activeSubdivision={activeBarIndex === globalIndex ? activeSubdivision : null}
                                         isSelected={selectedBars.includes(globalIndex)}
                                         isLoopActive={isLoopActive}
                                         onBarClick={onBarClick}

@@ -1,20 +1,18 @@
-import { Box, Typography, SpeedDial, SpeedDialAction } from "@mui/material";
-import { 
-    MusicNote as MusicNoteIcon, 
-    Edit as EditIcon,
+import {
     ContentCopy as CopyIcon,
-    Delete as DeleteIcon
+    Delete as DeleteIcon,
+    Edit as EditIcon,
+    MusicNote as MusicNoteIcon
 } from "@mui/icons-material";
-import React, { memo, useMemo, useState } from "react";
+import { Box, SpeedDial, SpeedDialAction, Typography } from "@mui/material";
+import React, { memo, useState } from "react";
 import type { Section } from "../types/sections";
 
 // La interfaz Section ahora viene del import de types/sections
 
 interface MusicBarProps {
     barIndex: number;
-    subdivisions: number;
     active: boolean;
-    activeSubdivision: number | null;
     isSelected: boolean;
     isLoopActive: boolean;
     onClick: () => void;
@@ -34,9 +32,7 @@ interface MusicBarProps {
 
 const MusicBar = memo(({ 
     barIndex, 
-    subdivisions, 
     active, 
-    activeSubdivision,
     isSelected,
     isLoopActive,
     onClick,
@@ -152,21 +148,7 @@ const MusicBar = memo(({
             >
                 {barNumber}
             </Typography>
-            
-            {/* Mostrar sección si existe */}
-            {section && (
-                <Typography 
-                    variant="caption" 
-                    sx={{ 
-                        color: section.color,
-                        fontWeight: "bold",
-                        fontSize: "10px",
-                        textAlign: "center"
-                    }}
-                >
-                    {section.letter} - {section.label}
-                </Typography>
-            )}
+
 
             {/* Footer con barra de loop y SpeedDial */}
             {showLoopButton && (
@@ -252,7 +234,7 @@ const MusicBar = memo(({
                             height: "24px",
                             minHeight: "24px",
                             display: "flex",
-                            alignItems: "center",
+                            alignItems: "top",
                             justifyContent: "center",
                             flexShrink: 0 // No permitir que se encoja
                         }}>

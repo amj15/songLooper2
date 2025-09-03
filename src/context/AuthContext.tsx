@@ -21,26 +21,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     // Obtener usuario al cargar
-    supabase.auth.getUser().then(({ data, error }) => {
-      console.log("AuthContext - getUser:", { data, error });
-      if (data?.user) {
-        console.log("AuthContext - setting user:", data.user);
-        setUser({ id: data.user.id, email: data.user.email ?? "" });
-      } else {
-        console.log("AuthContext - no user found");
+    const initAuth = async () => {
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (data?.user) {
+          setUser({ id: data.user.id, email: data.user.email ?? "" });
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
         setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+    
+    initAuth();
 
     // Suscribirnos a cambios de sesión
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("AuthContext - auth state change:", { event, session });
       if (session?.user) {
-        console.log("AuthContext - auth state change - setting user:", session.user);
         setUser({ id: session.user.id, email: session.user.email ?? "" });
       } else {
-        console.log("AuthContext - auth state change - clearing user");
         setUser(null);
       }
       setLoading(false);
@@ -53,20 +55,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string) => {
     try {
-      console.log("AuthContext - login attempt:", { email });
       const { data, error } = await supabase.auth.signInWithPassword({ 
         email, 
         password 
       });
-      console.log("AuthContext - login response:", { data, error });
       if (error) {
-        console.error("AuthContext - login error:", error);
         throw error;
       }
-      console.log("AuthContext - login successful");
       // No seteamos el usuario aquí, el listener onAuthStateChange lo hará
     } catch (error) {
-      console.error("AuthContext - login exception:", error);
       throw error;
     }
   };

@@ -5,9 +5,10 @@ import MuiDrawer, { drawerClasses } from '@mui/material/Drawer';
 import Stack from '@mui/material/Stack';
 import { styled } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
-import { SongLoopperIconMini } from '../components/CustomIcons';
+import appLogo from '../assets/appLogo-small-hd.png';
 import MenuContent from './MenuContent';
 import OptionsMenu from './OptionsMenu';
+import { useAuth } from '../context/AuthContext';
 
 const drawerWidth = 240;
 
@@ -23,6 +24,7 @@ const Drawer = styled(MuiDrawer)({
 });
 
 export default function SideMenu() {
+  const { user } = useAuth();
   return (
     <Drawer
       variant="permanent"
@@ -40,14 +42,18 @@ export default function SideMenu() {
           p: 1.5,
           alignItems: 'center',
           justifyContent: 'center',
+          flexDirection: 'column',
+          gap: 0.5,
         }}
       >
-        <SongLoopperIconMini
-          sx={{
-        width: 36,
-        height: 36,
-        color: 'primary.main',
-          }}
+        <img 
+          src={appLogo} 
+          alt="SongLooper" 
+          style={{ 
+            width: '100px', 
+            height: 'auto',
+            maxWidth: '100%'
+          }} 
         />
       </Box>
       <Divider />
@@ -73,16 +79,22 @@ export default function SideMenu() {
       >
         <Avatar
           sizes="small"
-          alt="Riley Carter"
-          src="/static/images/avatar/7.jpg"
-          sx={{ width: 36, height: 36 }}
-        />
+          alt={user?.email || 'User'}
+          sx={{ 
+            width: 36, 
+            height: 36, 
+            backgroundColor: 'primary.main',
+            fontSize: '14px'
+          }}
+        >
+          {user?.email ? user.email.charAt(0).toUpperCase() : 'U'}
+        </Avatar>
         <Box sx={{ mr: 'auto' }}>
           <Typography variant="body2" sx={{ fontWeight: 500, lineHeight: '16px' }}>
-            Riley Carter
+            {user?.email?.split('@')[0] || 'User'}
           </Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            riley@email.com
+            {user?.email || 'user@example.com'}
           </Typography>
         </Box>
         <OptionsMenu />

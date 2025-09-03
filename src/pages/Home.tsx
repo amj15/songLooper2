@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../services/supabase";
+import ConfirmDialog from "../components/ConfirmDialog";
 import {
   Box,
   Typography,
@@ -14,12 +15,17 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Chip
+  Chip,
+  IconButton,
+  Menu,
+  MenuItem
 } from "@mui/material";
 import {
   ExpandMore as ExpandMoreIcon,
   MusicNote as MusicNoteIcon,
-  Folder as FolderIcon
+  Folder as FolderIcon,
+  Delete as DeleteIcon,
+  MoreVert as MoreVertIcon
 } from "@mui/icons-material";
 
 interface Project {
@@ -39,6 +45,15 @@ export default function Home() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [projectsByCategory, setProjectsByCategory] = useState<ProjectsByCategory>({});
+    
+    // Estados para el menú de opciones
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+    
+    // Estados para el diálogo de confirmación
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
   
     useEffect(() => {
       const fetchProjects = async () => {
@@ -86,6 +101,70 @@ export default function Home() {
   
       fetchProjects();
     }, []);
+
+    // Funciones para manejar el menú
+    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, project: Project) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setAnchorEl(event.currentTarget);
+      setSelectedProject(project);
+    };
+
+    const handleMenuClose = () => {
+      setAnchorEl(null);
+      setSelectedProject(null);
+    };
+
+    // Funciones para manejar la eliminación
+    const handleDeleteClick = () => {
+      if (selectedProject) {
+        setDeletingProject(selectedProject);
+        setShowDeleteDialog(true);
+        handleMenuClose();
+      }
+    };
+
+    const handleDeleteCancel = () => {
+      setShowDeleteDialog(false);
+      setDeletingProject(null);
+    };
+
+    const handleDeleteConfirm = async () => {
+      if (!deletingProject) return;
+      
+      setIsDeleting(true);
+      try {
+        const { error } = await supabase
+          .from('projects')
+          .delete()
+          .eq('id', deletingProject.id);
+
+        if (error) throw error;
+
+        // Actualizar la lista de proyectos
+        const updatedProjects = projects.filter(p => p.id !== deletingProject.id);
+        setProjects(updatedProjects);
+        
+        // Reagrupar proyectos por categoría
+        const grouped = updatedProjects.reduce((acc: ProjectsByCategory, project: Project) => {
+          const category = project.category || 'General';
+          if (!acc[category]) {
+            acc[category] = [];
+          }
+          acc[category].push(project);
+          return acc;
+        }, {});
+        
+        setProjectsByCategory(grouped);
+        
+        setShowDeleteDialog(false);
+        setDeletingProject(null);
+      } catch (error) {
+        console.error('Error deleting project:', error);
+      } finally {
+        setIsDeleting(false);
+      }
+    };
   
     return (
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
@@ -141,23 +220,42 @@ export default function Home() {
                       {categoryProjects.map((project) => (
                         <ListItem
                           key={project.id}
-                          component={Link}
-                          to={`/daw/${project.id}`}
                           sx={{
                             textDecoration: 'none',
                             color: 'inherit',
                             '&:hover': { backgroundColor: 'action.hover' },
                             borderRadius: 1,
-                            m: 0.5
+                            m: 0.5,
+                            display: 'flex',
+                            alignItems: 'center'
                           }}
                         >
-                          <ListItemIcon>
-                            <MusicNoteIcon color="secondary" />
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={project.name || "Sin nombre"}
-                            secondary={`${project.time_signature} • ${project.tempo} BPM • ${new Date(project.created_at).toLocaleDateString()}`}
-                          />
+                          <Box
+                            component={Link}
+                            to={`/daw/${project.id}`}
+                            sx={{
+                              textDecoration: 'none',
+                              color: 'inherit',
+                              display: 'flex',
+                              alignItems: 'center',
+                              flex: 1
+                            }}
+                          >
+                            <ListItemIcon>
+                              <MusicNoteIcon color="secondary" />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={project.name || "Sin nombre"}
+                              secondary={`${project.time_signature} • ${project.tempo} BPM • ${new Date(project.created_at).toLocaleDateString()}`}
+                            />
+                          </Box>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => handleMenuOpen(e, project)}
+                            sx={{ ml: 1 }}
+                          >
+                            <MoreVertIcon />
+                          </IconButton>
                         </ListItem>
                       ))}
                     </List>
@@ -167,6 +265,33 @@ export default function Home() {
             </Box>
           )}
         </Paper>
+
+        {/* Menú de opciones */}
+        <Menu
+          anchorEl={anchorEl}
+          open={Boolean(anchorEl)}
+          onClose={handleMenuClose}
+          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        >
+          <MenuItem onClick={handleDeleteClick}>
+            <DeleteIcon sx={{ mr: 1 }} color="error" />
+            <Typography color="error">Eliminar proyecto</Typography>
+          </MenuItem>
+        </Menu>
+
+        {/* Diálogo de confirmación */}
+        <ConfirmDialog
+          open={showDeleteDialog}
+          onClose={handleDeleteCancel}
+          onConfirm={handleDeleteConfirm}
+          title="Eliminar Proyecto"
+          message={`¿Estás seguro de que quieres eliminar el proyecto "${deletingProject?.name}"? Esta acción no se puede deshacer.`}
+          confirmText="Eliminar"
+          cancelText="Cancelar"
+          severity="error"
+          isLoading={isDeleting}
+        />
       </Container>
     );
 }
